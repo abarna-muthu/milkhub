@@ -89,10 +89,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(PORT, () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`====================================================`);
   console.log(`  MilkHub Milk Collection & Dairy CRM API           `);
   console.log(`  Developed by Gen Z Neural-X                       `);
-  console.log(`  Running on http://localhost:${PORT}             `);
+  console.log(`  Running on http://0.0.0.0:${PORT}               `);
   console.log(`====================================================`);
 });

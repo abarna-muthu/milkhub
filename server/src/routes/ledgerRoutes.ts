@@ -11,7 +11,7 @@ ledgerRouter.get('/:customerId', (req: AuthenticatedRequest, res: Response) => {
     return res.status(404).json({ error: 'Customer not found' });
   }
 
-  const center = store.getCenterById(cust.collection_center_id);
+  const center = store.getCenterById(cust.collection_center_id || cust.center_id || '');
   const rawLedger = store.getLedgerByCustomerId(cust.id);
 
   // Recalculate running balance strictly in chronological order for financial accuracy

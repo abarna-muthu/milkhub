@@ -12,6 +12,8 @@ import {
   Building2,
   Settings,
   X,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
@@ -37,6 +39,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   const navItems = [
     { path: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-4 h-4" />, adminOnly: false },
     { path: 'customers', label: t('customers'), icon: <Users className="w-4 h-4" />, adminOnly: false },
+    { path: 'deliveries-morning', label: 'Morning Delivery', icon: <Sun className="w-4 h-4 text-amber-500" />, adminOnly: false },
+    { path: 'deliveries-evening', label: 'Evening Delivery', icon: <Moon className="w-4 h-4 text-indigo-400" />, adminOnly: false },
     { path: 'collection', label: t('milk_collection'), icon: <Milk className="w-4 h-4" />, adminOnly: false },
     { path: 'payments', label: t('payments_settlement'), icon: <CreditCard className="w-4 h-4" />, adminOnly: false },
     { path: 'ledger', label: t('customer_ledger'), icon: <BookOpen className="w-4 h-4" />, adminOnly: false },

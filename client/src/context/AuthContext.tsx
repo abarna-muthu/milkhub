@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
+import { authApi } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -7,32 +8,11 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isStaff: boolean;
+  isInitializing: boolean;
   login: (token: string, user: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   switchRole: (role: UserRole) => void;
 }
-
-const defaultAdminUser: User = {
-  id: 'u1',
-  name: 'Admin',
-  mobile: '9842100001',
-  email: 'admin@MilkHub',
-  role: 'admin',
-  collection_center_id: 'c1',
-  collection_center_name: 'Srivilliputtur Center',
-  status: 'active',
-};
-
-const defaultStaffUser: User = {
-  id: 'u2',
-  name: 'Murugan S (Staff)',
-  mobile: '9842100002',
-  email: 'staff@milkhub.com',
-  role: 'staff',
-  collection_center_id: 'c1',
-  collection_center_name: 'Srivilliputtur Center',
-  status: 'active',
-};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -53,6 +33,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return localStorage.getItem('milk_crm_token') || null;
   });
 
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Verify authentication with backend on initial load / refresh
+  useEffect(() => {
+    const verifySession = async () => {
+      const savedToken = localStorage.getItem('milk_crm_token');
+      if (savedToken) {
+        try {
+          const freshUser = await authApi.me();
+          if (freshUser && freshUser.id) {
+            setUser(freshUser);
+            localStorage.setItem('milk_crm_user', JSON.stringify(freshUser));
+          } else {
+            // Invalid response
+            clearSession();
+          }
+        } catch (err: any) {
+          // If token expired or invalid (401), clear local session
+          if (err?.response?.status === 401) {
+            clearSession();
+          }
+          // If offline / network error, retain existing user state so user isn't abruptly booted
+        }
+      } else {
+        clearSession();
+      }
+      setIsInitializing(false);
+    };
+
+    verifySession();
+  }, []);
+
+  const clearSession = () => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('milk_crm_token');
+    localStorage.removeItem('milk_crm_user');
+  };
+
   const login = (newToken: string, newUser: User) => {
     setUser(newUser);
     setToken(newToken);
@@ -60,16 +79,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('milk_crm_user', JSON.stringify(newUser));
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('milk_crm_token');
-    localStorage.removeItem('milk_crm_user');
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch (e) {
+      // Ignore network errors on logout
+    } finally {
+      clearSession();
+    }
   };
 
   const switchRole = (newRole: UserRole) => {
-    const targetUser = newRole === 'admin' ? defaultAdminUser : defaultStaffUser;
-    login(targetUser.id, targetUser);
+    if (user) {
+      const updated = { ...user, role: newRole };
+      setUser(updated);
+      localStorage.setItem('milk_crm_user', JSON.stringify(updated));
+    }
   };
 
   return (
@@ -77,9 +102,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         token,
-        isAuthenticated: !!user,
-        isAdmin: user?.role === 'admin',
+        isAuthenticated: !!user && !!token,
+        isAdmin: user?.role === 'admin' || user?.role === ('owner' as any),
         isStaff: user?.role === 'staff',
+        isInitializing,
         login,
         logout,
         switchRole,

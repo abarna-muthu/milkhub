@@ -133,7 +133,7 @@ export const FastCollectionForm: React.FC<FastCollectionFormProps> = ({
     return (
       c.name.toLowerCase().includes(q) ||
       c.customer_code.toLowerCase().includes(q) ||
-      c.mobile.includes(q)
+      (c.phone || c.mobile || '').includes(q)
     );
   });
 

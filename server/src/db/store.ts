@@ -166,7 +166,7 @@ class DataStore {
       list = list.filter((c) => c.default_session === filters.session || c.default_session === 'both');
     }
     if (filters.village && filters.village !== 'all') {
-      list = list.filter((c) => c.village.toLowerCase() === filters.village?.toLowerCase());
+      list = list.filter((c) => (c.area || c.village || '').toLowerCase() === filters.village?.toLowerCase());
     }
     if (filters.search) {
       const q = filters.search.toLowerCase().trim();
@@ -174,8 +174,8 @@ class DataStore {
         (c) =>
           c.name.toLowerCase().includes(q) ||
           c.customer_code.toLowerCase().includes(q) ||
-          c.mobile.includes(q) ||
-          c.village.toLowerCase().includes(q)
+          (c.phone || c.mobile || '').includes(q) ||
+          (c.area || c.village || '').toLowerCase().includes(q)
       );
     }
     return list;

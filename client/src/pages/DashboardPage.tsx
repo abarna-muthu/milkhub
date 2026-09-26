@@ -12,7 +12,11 @@ import {
   Eye,
   Plus,
   Building2,
-  Zap,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  FileText,
 } from 'lucide-react';
 import {
   BarChart,
@@ -41,11 +45,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const { t } = useLanguage();
   const { centers, selectedCenterId, setSelectedCenterId, selectedCenterName } = useCenter();
 
+  // Date Filter State: Today, Yesterday, Custom Date
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getYesterdayStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  };
+
+  const [dateMode, setDateMode] = useState<'today' | 'yesterday' | 'custom'>('today');
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
   const [isLoading, setIsLoading] = useState(true);
+
   const [data, setData] = useState<{
     kpis: {
       today_milk: number;
+      morning_milk?: number;
+      evening_milk?: number;
       today_amount: number;
+      today_sales?: number;
+      today_paid?: number;
+      today_due?: number;
       total_centers?: number;
       total_suppliers: number;
       total_registered_suppliers?: number;
@@ -55,15 +75,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     center_breakdown?: Array<{
       center_id: string;
       center_name: string;
-      code: string;
-      location: string;
+      code?: string;
+      location?: string;
       morning_milk: number;
       evening_milk: number;
       today_total: number;
-      today_amount: number;
+      today_amount?: number;
+      today_sales?: number;
+      today_paid?: number;
+      today_due?: number;
       registered_suppliers: number;
-      direct_collections: number;
-      pending_payments: number;
     }>;
     morning_vs_evening: {
       morning: number;
@@ -77,120 +98,75 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       evening: number;
       total: number;
     }>;
-    recent_collections: Array<{
+    recent_deliveries?: Array<{
       id: string;
-      customer_id: string;
       customer_name: string;
       customer_code: string;
-      supplier_type?: string;
-      center_name?: string;
-      session: 'morning' | 'evening';
-      milk: number;
-      fat: number;
-      snf: number;
-      rate: number;
-      amount: number;
-      payment_status?: string;
+      center_name: string;
+      session: string;
+      actual_qty: number;
       status: string;
+      total_amount: number;
       date: string;
     }>;
-    pending_payments: Array<{
+    recent_payments?: Array<{
+      id: string;
+      customer_name: string;
+      customer_code: string;
+      amount: number;
+      payment_type: string;
+      payment_mode: string;
+      reference_id: string;
+      date: string;
+    }>;
+    pending_payments: Array<any>;
+    pending_balances?: Array<{
       customer_id: string;
       customer_name: string;
       customer_code: string;
-      mobile: string;
-      village: string;
-      total_amount: number;
+      center_name: string;
+      sale: number;
       paid: number;
-      pending: number;
-      due_date: string;
+      due: number;
     }>;
   }>({
     kpis: {
-      today_milk: 1248.0,
-      today_amount: 52416.0,
-      total_centers: 4,
-      total_suppliers: 186,
-      total_registered_suppliers: 186,
-      direct_collections_today: 4,
-      pending_payments: 18750.0,
+      today_milk: 0,
+      morning_milk: 0,
+      evening_milk: 0,
+      today_amount: 0,
+      today_sales: 0,
+      today_paid: 0,
+      today_due: 0,
+      total_centers: 0,
+      total_suppliers: 0,
+      pending_payments: 0,
     },
-    center_breakdown: [
-      {
-        center_id: 'c1',
-        center_name: 'Srivilliputtur Center',
-        code: 'SVPR',
-        location: 'Madurai Road',
-        morning_milk: 650.0,
-        evening_milk: 580.0,
-        today_total: 1230.0,
-        today_amount: 51660.0,
-        registered_suppliers: 186,
-        direct_collections: 2,
-        pending_payments: 18750.0,
-      },
-      {
-        center_id: 'c2',
-        center_name: 'Rajapalayam Center',
-        code: 'RJPM',
-        location: 'Tenkasi Highway',
-        morning_milk: 420.0,
-        evening_milk: 390.0,
-        today_total: 810.0,
-        today_amount: 34020.0,
-        registered_suppliers: 124,
-        direct_collections: 1,
-        pending_payments: 12400.0,
-      },
-      {
-        center_id: 'c3',
-        center_name: 'Sivakasi Center',
-        code: 'SVKS',
-        location: 'Sattur Road',
-        morning_milk: 480.0,
-        evening_milk: 440.0,
-        today_total: 920.0,
-        today_amount: 38640.0,
-        registered_suppliers: 142,
-        direct_collections: 1,
-        pending_payments: 15200.0,
-      },
-      {
-        center_id: 'c4',
-        center_name: 'Virudhunagar Center',
-        code: 'VDR',
-        location: 'Collectorate Junction',
-        morning_milk: 350.0,
-        evening_milk: 310.0,
-        today_total: 660.0,
-        today_amount: 27720.0,
-        registered_suppliers: 98,
-        direct_collections: 0,
-        pending_payments: 9800.0,
-      },
-    ],
-    morning_vs_evening: {
-      morning: 684.0,
-      evening: 564.0,
-      total: 1248.0,
-    },
-    weekly_collection: [
-      { date: '2026-09-17', day: 'Wed', morning: 640, evening: 520, total: 1160 },
-      { date: '2026-09-18', day: 'Thu', morning: 660, evening: 535, total: 1195 },
-      { date: '2026-09-19', day: 'Fri', morning: 675, evening: 545, total: 1220 },
-      { date: '2026-09-20', day: 'Sat', morning: 670, evening: 550, total: 1220 },
-      { date: '2026-09-21', day: 'Sun', morning: 680, evening: 560, total: 1240 },
-      { date: '2026-09-22', day: 'Mon', morning: 682, evening: 558, total: 1240 },
-      { date: '2026-09-23', day: 'Tue', morning: 684, evening: 564, total: 1248 },
-    ],
-    recent_collections: [],
+    center_breakdown: [],
+    morning_vs_evening: { morning: 0, evening: 0, total: 0 },
+    weekly_collection: [],
+    recent_deliveries: [],
+    recent_payments: [],
     pending_payments: [],
+    pending_balances: [],
   });
+
+  const handleDateModeSelect = (mode: 'today' | 'yesterday' | 'custom') => {
+    setDateMode(mode);
+    if (mode === 'today') {
+      setSelectedDate(getTodayStr());
+    } else if (mode === 'yesterday') {
+      setSelectedDate(getYesterdayStr());
+    }
+  };
 
   const loadStats = async () => {
     setIsLoading(true);
     try {
-      const res = await dashboardApi.getStats(selectedCenterId);
+      const res = await dashboardApi.getStats(
+        selectedCenterId !== 'all' ? selectedCenterId : undefined,
+        selectedDate
+      );
       setData(res);
     } catch (err) {
       console.warn('Dashboard stats fallback', err);
@@ -201,29 +177,93 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     loadStats();
-  }, [selectedCenterId]);
+  }, [selectedCenterId, selectedDate]);
 
   const handleCenterClick = (centerId: string) => {
     setSelectedCenterId(centerId);
-    onNavigate('collection');
   };
 
-  const centerBarColors = ['#14532d', '#15803d', '#16a34a', '#22c55e', '#4ade80'];
+  // Safe KPI access
+  const totalMilk = data.kpis.today_milk || 0;
+  const morningMilk = data.kpis.morning_milk ?? data.morning_vs_evening.morning ?? 0;
+  const eveningMilk = data.kpis.evening_milk ?? data.morning_vs_evening.evening ?? 0;
+  const todaySales = data.kpis.today_sales ?? data.kpis.today_amount ?? 0;
+  const todayPaid = data.kpis.today_paid ?? 0;
+  const todayDue = data.kpis.today_due ?? data.kpis.pending_payments ?? 0;
+  const activeSuppliers = data.kpis.total_suppliers || data.kpis.total_registered_suppliers || 0;
+  const collectionCenters = data.kpis.total_centers || (centers.length > 0 ? centers.length : 1);
 
   return (
     <div className="space-y-6">
-      {/* Header Section */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
+      {/* Header & Date Controls */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-            {t('dashboard')}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              Operational Dashboard
+            </h1>
+            <span className="text-[11px] font-semibold bg-brand-50 text-brand-900 border border-brand-200 px-2 py-0.5 rounded-full">
+              Live Database
+            </span>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Operational Dairy CRM Overview • <span className="font-semibold text-brand-900">{selectedCenterName}</span>
+            Real-time dairy metrics, intake sessions, financial settlements & center distribution.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        {/* Date Filter & Actions */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Quick Filter Buttons: Today, Yesterday, Custom */}
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => handleDateModeSelect('today')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                dateMode === 'today'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDateModeSelect('yesterday')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                dateMode === 'yesterday'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Yesterday
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDateModeSelect('custom')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                dateMode === 'custom'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Custom Date
+            </button>
+          </div>
+
+          {/* Date Picker Input */}
+          <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                setDateMode('custom');
+                setSelectedDate(e.target.value);
+              }}
+              className="border-none bg-transparent font-medium text-slate-800 text-xs focus:outline-hidden"
+            />
+          </div>
+
           <Button
             variant="outline"
             size="sm"
@@ -231,81 +271,145 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             isLoading={isLoading}
             icon={<RefreshCw className="w-3.5 h-3.5" />}
           >
-            {t('refresh')}
+            Refresh
           </Button>
 
           <Button
             variant="primary"
             size="sm"
-            onClick={() => onNavigate('collection')}
-            icon={<Plus className="w-4 h-4" />}
+            onClick={() => onNavigate('deliveries-morning')}
+            icon={<Plus className="w-3.5 h-3.5" />}
           >
-            {t('intake_dock')}
+            Record Intake
           </Button>
         </div>
       </div>
 
-      {/* KPI Cards (Requirement 10: 6 Core Business KPIs) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard
-          title={t('today_milk')}
-          value={formatLitres(data.kpis.today_milk)}
-          subtitle={t('both')}
-          icon={<Milk className="w-4 h-4 text-brand-900" />}
-          highlightColor="green"
-        />
+      {/* 8 Core Business KPIs Grid (Phase 6 Requirement) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        {/* 1. Total Milk */}
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+            <span>Total Milk</span>
+            <Milk className="w-3.5 h-3.5 text-brand-900" />
+          </div>
+          <div className="mt-2">
+            <div className="text-lg font-black text-slate-900 font-mono tabular-nums leading-tight">
+              {formatLitres(totalMilk)}
+            </div>
+            <span className="text-[10px] text-slate-400">Consolidated</span>
+          </div>
+        </div>
 
-        <StatCard
-          title={t('today_amount')}
-          value={formatCurrency(data.kpis.today_amount)}
-          subtitle={t('recent_collections')}
-          icon={<IndianRupee className="w-4 h-4 text-emerald-800" />}
-          highlightColor="green"
-        />
+        {/* 2. Morning Milk */}
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between text-amber-700 text-[10px] font-bold uppercase tracking-wider">
+            <span>Morning</span>
+            <Sun className="w-3.5 h-3.5 text-amber-500" />
+          </div>
+          <div className="mt-2">
+            <div className="text-lg font-black text-amber-950 font-mono tabular-nums leading-tight">
+              {formatLitres(morningMilk)}
+            </div>
+            <span className="text-[10px] text-amber-600/70">Session 1</span>
+          </div>
+        </div>
 
-        <StatCard
-          title={t('total_centers')}
-          value={data.kpis.total_centers || centers.length}
-          subtitle={t('active_dock')}
-          icon={<Building2 className="w-4 h-4 text-slate-700" />}
-          highlightColor="blue"
-        />
+        {/* 3. Evening Milk */}
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between text-indigo-700 text-[10px] font-bold uppercase tracking-wider">
+            <span>Evening</span>
+            <Moon className="w-3.5 h-3.5 text-indigo-500" />
+          </div>
+          <div className="mt-2">
+            <div className="text-lg font-black text-indigo-950 font-mono tabular-nums leading-tight">
+              {formatLitres(eveningMilk)}
+            </div>
+            <span className="text-[10px] text-indigo-600/70">Session 2</span>
+          </div>
+        </div>
 
-        <StatCard
-          title={t('registered_suppliers')}
-          value={data.kpis.total_registered_suppliers || data.kpis.total_suppliers}
-          subtitle={t('active_farmers')}
-          icon={<Users className="w-4 h-4 text-slate-700" />}
-          highlightColor="blue"
-        />
+        {/* 4. Today's Sales */}
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
+            <span>Sales Value</span>
+            <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+          </div>
+          <div className="mt-2">
+            <div className="text-lg font-black text-emerald-950 font-mono tabular-nums leading-tight">
+              {formatCurrency(todaySales)}
+            </div>
+            <span className="text-[10px] text-emerald-600/70">Gross delivery</span>
+          </div>
+        </div>
 
-        <StatCard
-          title={t('direct_collections')}
-          value={data.kpis.direct_collections_today ?? 0}
-          subtitle={t('box2_badge')}
-          icon={<Zap className="w-4 h-4 text-amber-600" />}
-          highlightColor="amber"
-        />
+        {/* 5. Today's Paid */}
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between text-blue-700 text-[10px] font-bold uppercase tracking-wider">
+            <span>Paid</span>
+            <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+          <div className="mt-2">
+            <div className="text-lg font-black text-blue-950 font-mono tabular-nums leading-tight">
+              {formatCurrency(todayPaid)}
+            </div>
+            <span className="text-[10px] text-blue-600/70">Disbursed</span>
+          </div>
+        </div>
 
-        <StatCard
-          title={t('pending_payments')}
-          value={formatCurrency(data.kpis.pending_payments)}
-          subtitle={t('balance_due')}
-          icon={<AlertCircle className="w-4 h-4 text-rose-600" />}
-          highlightColor="amber"
-        />
+        {/* 6. Today's Due */}
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between text-rose-700 text-[10px] font-bold uppercase tracking-wider">
+            <span>Due</span>
+            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+          </div>
+          <div className="mt-2">
+            <div className="text-lg font-black text-rose-950 font-mono tabular-nums leading-tight">
+              {formatCurrency(todayDue)}
+            </div>
+            <span className="text-[10px] text-rose-600/70">Unsettled</span>
+          </div>
+        </div>
+
+        {/* 7. Active Suppliers */}
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+            <span>Suppliers</span>
+            <Users className="w-3.5 h-3.5 text-slate-600" />
+          </div>
+          <div className="mt-2">
+            <div className="text-lg font-black text-slate-900 font-mono tabular-nums leading-tight">
+              {activeSuppliers}
+            </div>
+            <span className="text-[10px] text-slate-400">Active accounts</span>
+          </div>
+        </div>
+
+        {/* 8. Collection Centers */}
+        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+            <span>Centers</span>
+            <Building2 className="w-3.5 h-3.5 text-slate-600" />
+          </div>
+          <div className="mt-2">
+            <div className="text-lg font-black text-slate-900 font-mono tabular-nums leading-tight">
+              {collectionCenters}
+            </div>
+            <span className="text-[10px] text-slate-400">Hub stations</span>
+          </div>
+        </div>
       </div>
 
-      {/* Center-wise Milk Collection Section (Requirement 10) */}
-      <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-subtle">
+      {/* Center-wise Milk Collection Section */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-subtle">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-brand-900" />
-              {t('center_wise_collection')}
+              Center-wise Collection & Financial Breakdown ({selectedDate})
             </h2>
             <p className="text-[11px] text-slate-500">
-              {t('center_wise_desc')}
+              Live intake volume, gross sales value, disbursements, and dues per hub station.
             </p>
           </div>
 
@@ -314,338 +418,265 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             onClick={() => onNavigate('centers')}
             className="text-xs text-brand-900 font-semibold hover:underline flex items-center gap-1"
           >
-            {t('manage_centers')} <ArrowRight className="w-3.5 h-3.5" />
+            Manage Centers <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Center Cards & Bar Chart Split */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
-          {/* Visual Bar Chart (5 columns) */}
-          <div className="lg:col-span-5 h-48 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={data.center_breakdown || []}
-                margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis
-                  dataKey="code"
-                  tick={{ fontSize: 11, fill: '#475569' }}
-                  axisLine={{ stroke: '#cbd5e1' }}
-                />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderColor: '#e2e8f0',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                  }}
-                  formatter={(val: any) => [`${val} L`, 'Today Total']}
-                />
-                <Bar
-                  dataKey="today_total"
-                  name="Milk (L)"
-                  radius={[4, 4, 0, 0]}
-                  cursor="pointer"
-                  onClick={(entry: any) => handleCenterClick(entry?.center_id || entry?.payload?.center_id)}
-                >
-                  {(data.center_breakdown || []).map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.center_id === selectedCenterId ? '#14532d' : '#15803d'}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Center Summary Table / Cards (7 columns) */}
-          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {(data.center_breakdown || []).map((ctr) => {
+        {/* Center Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {(data.center_breakdown || []).length === 0 ? (
+            <div className="col-span-full py-8 text-center text-xs text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+              No collection recorded for this date.
+            </div>
+          ) : (
+            (data.center_breakdown || []).map((ctr) => {
               const isSelected = selectedCenterId === ctr.center_id;
-
               return (
                 <div
                   key={ctr.center_id}
                   onClick={() => handleCenterClick(ctr.center_id)}
-                  className={`p-3.5 rounded-lg border cursor-pointer transition-all ${
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
                     isSelected
-                      ? 'border-brand-900 bg-brand-50/40 ring-1 ring-brand-900'
-                      : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
+                      ? 'border-brand-800 bg-brand-50/30 ring-1 ring-brand-800 shadow-xs'
+                      : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-slate-900 text-xs">
+                    <span className="font-bold text-slate-900 text-xs truncate">
                       {ctr.center_name}
                     </span>
-                    <span className="font-mono text-[10px] font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-600">
-                      {ctr.code}
+                    <span className="font-mono text-[10px] font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">
+                      {ctr.registered_suppliers} suppliers
                     </span>
                   </div>
 
-                  <div className="flex items-baseline justify-between">
+                  <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-200/70 text-center">
                     <div>
-                      <span className="text-[11px] text-slate-500 block">{t('today_milk')}:</span>
-                      <span className="text-base font-extrabold text-brand-900 tabular-nums">
-                        {ctr.today_total} {t('litres')}
-                      </span>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Morning</span>
+                      <span className="text-xs font-bold text-slate-800 font-mono">{ctr.morning_milk}L</span>
                     </div>
-
-                    <div className="text-right">
-                      <span className="text-[11px] text-slate-500 block">{t('amount')}:</span>
-                      <span className="text-xs font-bold text-emerald-800 tabular-nums">
-                        {formatCurrency(ctr.today_amount)}
-                      </span>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Evening</span>
+                      <span className="text-xs font-bold text-slate-800 font-mono">{ctr.evening_milk}L</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Milk</span>
+                      <span className="text-xs font-black text-brand-900 font-mono">{ctr.today_total}L</span>
                     </div>
                   </div>
 
-                  <div className="mt-2.5 pt-2 border-t border-slate-200/70 flex items-center justify-between text-[11px] text-slate-500">
-                    <span>M: {ctr.morning_milk}L • E: {ctr.evening_milk}L</span>
-                    <span className="font-semibold text-brand-900 flex items-center gap-0.5">
-                      {t('view')} →
+                  <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">
+                      Sales: <strong className="text-slate-800">₹{ctr.today_sales ?? ctr.today_amount ?? 0}</strong>
+                    </span>
+                    <span className="text-slate-500">
+                      Due: <strong className="text-rose-700">₹{ctr.today_due ?? (ctr as any).pending_payments ?? 0}</strong>
                     </span>
                   </div>
                 </div>
               );
-            })}
-          </div>
+            })
+          )}
         </div>
       </div>
 
-      {/* Analytics Row: Morning vs Evening Split & Weekly Last 7 Days */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Morning vs Evening Collection Card (4 cols) */}
-        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-lg p-5 shadow-subtle flex flex-col justify-between">
+      {/* Analytics Row: 7-Day Collection Trend */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-subtle">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
           <div>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                {t('morning_vs_evening')}
-              </h2>
-              <span className="text-xs text-slate-400 font-medium">Today</span>
-            </div>
-
-            <div className="mt-4 space-y-4">
-              {/* Morning Session */}
-              <div className="p-3 rounded-md bg-amber-50/60 border border-amber-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-amber-100 text-amber-800 flex items-center justify-center">
-                    <Sun className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-semibold text-slate-800 block">
-                      {t('morning')}
-                    </span>
-                    <span className="text-[11px] text-slate-500">Peak dock intake</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-lg font-bold text-slate-900 tabular-nums block">
-                    {formatLitres(data.morning_vs_evening.morning)}
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    {data.morning_vs_evening.total > 0
-                      ? `${((data.morning_vs_evening.morning / data.morning_vs_evening.total) * 100).toFixed(0)}%`
-                      : '0%'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Evening Session */}
-              <div className="p-3 rounded-md bg-indigo-50/60 border border-indigo-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded bg-indigo-100 text-indigo-800 flex items-center justify-center">
-                    <Moon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-semibold text-slate-800 block">
-                      {t('evening')}
-                    </span>
-                    <span className="text-[11px] text-slate-500">Second session</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-lg font-bold text-slate-900 tabular-nums block">
-                    {formatLitres(data.morning_vs_evening.evening)}
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    {data.morning_vs_evening.total > 0
-                      ? `${((data.morning_vs_evening.evening / data.morning_vs_evening.total) * 100).toFixed(0)}%`
-                      : '0%'}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              7-Day Milk Collection Trend
+            </h2>
+            <span className="text-[11px] text-slate-500">Morning and Evening intake trajectory in Litres</span>
           </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500 font-medium">Daily Consolidated:</span>
-            <span className="font-bold text-slate-900 text-sm">
-              {formatLitres(data.morning_vs_evening.total)}
-            </span>
-          </div>
+          <span className="text-xs text-brand-800 font-medium bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
+            Database Aggregation
+          </span>
         </div>
 
-        {/* Weekly Collection (Last 7 Days) (8 cols) */}
-        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-lg p-5 shadow-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-            <div>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                {t('weekly_collection')}
-              </h2>
-              <span className="text-[11px] text-slate-500">Morning and Evening volume in Litres</span>
-            </div>
-            <span className="text-xs text-brand-800 font-medium bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
-              7-Day Trend
-            </span>
-          </div>
-
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.weekly_collection} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '6px', fontSize: '11px' }}
-                  formatter={(val: any) => [`${val} L`, '']}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                <Bar dataKey="morning" name="Morning (L)" fill="#f59e0b" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="evening" name="Evening (L)" fill="#4338ca" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="h-52 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data.weekly_collection} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '6px', fontSize: '11px' }}
+                formatter={(val: any) => [`${val} L`, '']}
+              />
+              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+              <Bar dataKey="morning" name="Morning (L)" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="evening" name="Evening (L)" fill="#4338ca" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Tables Section: Recent Collections & Top Pending Payments */}
+      {/* Activity Tables Section: Recent Deliveries, Recent Payments & Pending Balances */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Recent Collections Table (7 cols) */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-lg shadow-subtle overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                {t('recent_collections')}
-              </h3>
-              <p className="text-[11px] text-slate-500">{t('dashboard_overview')}</p>
+        {/* 1. Recent Deliveries (5 cols) */}
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl shadow-subtle overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Recent Deliveries
+                </h3>
+                <p className="text-[11px] text-slate-500">Latest recorded milk intake</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('deliveries-morning')}
+                className="text-xs text-brand-900 hover:underline font-semibold flex items-center gap-1"
+              >
+                View all <ArrowRight className="w-3 h-3" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => onNavigate('collection')}
-              className="text-xs text-brand-900 hover:underline font-semibold flex items-center gap-1"
-            >
-              {t('view')} <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[10px] border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-2.5">{t('table_farmer_name')}</th>
-                  <th className="px-2 py-2.5">{t('category')}</th>
-                  <th className="px-2 py-2.5">{t('session')}</th>
-                  <th className="px-2 py-2.5 text-right">{t('table_milk_l')}</th>
-                  <th className="px-2 py-2.5 text-right">{t('table_fat')}</th>
-                  <th className="px-2 py-2.5 text-right">{t('table_snf')}</th>
-                  <th className="px-2 py-2.5 text-right">{t('table_rate')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('table_amount')}</th>
-                  <th className="px-3 py-2.5 text-center">{t('table_status')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.recent_collections.map((col) => (
-                  <tr key={col.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-2.5">
-                      <div className="font-semibold text-slate-900">{col.customer_name}</div>
-                      <span className="text-[10px] font-mono text-slate-400">
-                        {col.center_name || col.customer_code}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5">
-                      <span
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                          col.supplier_type === 'DIRECT'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {col.supplier_type === 'DIRECT' ? 'Direct' : 'Reg'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5">
-                      <Badge variant={col.session === 'morning' ? 'morning' : 'evening'} size="sm">
-                        {col.session === 'morning' ? 'Morn' : 'Eve'}
-                      </Badge>
-                    </td>
-                    <td className="px-2 py-2.5 text-right font-semibold text-slate-900 tabular-nums">
-                      {formatLitres(col.milk)}
-                    </td>
-                    <td className="px-2 py-2.5 text-right tabular-nums text-slate-600">
-                      {formatPercent(col.fat)}
-                    </td>
-                    <td className="px-2 py-2.5 text-right tabular-nums text-slate-600">
-                      {formatPercent(col.snf)}
-                    </td>
-                    <td className="px-2 py-2.5 text-right tabular-nums text-slate-700">
-                      ₹{col.rate.toFixed(1)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-bold text-brand-900 tabular-nums">
-                      {formatCurrency(col.amount)}
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <Badge variant="success" size="sm">
-                        Collected
-                      </Badge>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-2.5">Supplier</th>
+                    <th className="px-2 py-2.5">Session</th>
+                    <th className="px-2 py-2.5 text-right">Qty</th>
+                    <th className="px-3 py-2.5 text-right">Amount</th>
+                    <th className="px-3 py-2.5 text-center">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(!data.recent_deliveries || data.recent_deliveries.length === 0) ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-xs text-slate-400">
+                        No deliveries recorded recently.
+                      </td>
+                    </tr>
+                  ) : (
+                    data.recent_deliveries.slice(0, 7).map((del) => (
+                      <tr key={del.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-2.5">
+                          <div className="font-semibold text-slate-900">{del.customer_name}</div>
+                          <span className="text-[10px] font-mono text-slate-400">{del.customer_code}</span>
+                        </td>
+                        <td className="px-2 py-2.5">
+                          <Badge variant={del.session === 'MORNING' ? 'morning' : 'evening'} size="sm">
+                            {del.session === 'MORNING' ? 'Morn' : 'Eve'}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-2.5 text-right font-bold text-slate-900 font-mono">
+                          {del.actual_qty}L
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-bold text-emerald-800 font-mono">
+                          ₹{del.total_amount?.toFixed(2) || '0.00'}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              del.status === 'DELIVERED'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {del.status === 'DELIVERED' ? 'Delivered' : 'No Milk'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        {/* Top Pending Payments (5 cols) */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-lg shadow-subtle overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                {t('pending_payments')}
-              </h3>
-              <p className="text-[11px] text-slate-500">Unsettled farmer balances</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate('payments')}
-              className="text-xs text-brand-900 hover:underline font-semibold flex items-center gap-1"
-            >
-              {t('record_payment')} <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="divide-y divide-slate-100">
-            {data.pending_payments.map((p) => (
-              <div
-                key={p.customer_id}
-                className="px-5 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors text-xs"
-              >
-                <div>
-                  <div className="font-semibold text-slate-900">{p.customer_name}</div>
-                  <div className="text-[11px] text-slate-500">
-                    {p.village} • {p.customer_code}
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="font-bold text-amber-800 tabular-nums text-sm">
-                    {formatCurrency(p.pending)}
-                  </div>
-                  <span className="text-[10px] text-slate-400">Due {p.due_date}</span>
-                </div>
+        {/* 2. Recent Payments (4 cols) */}
+        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl shadow-subtle overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Recent Payments
+                </h3>
+                <p className="text-[11px] text-slate-500">Disbursements & advances</p>
               </div>
-            ))}
+              <button
+                type="button"
+                onClick={() => onNavigate('payments')}
+                className="text-xs text-brand-900 hover:underline font-semibold flex items-center gap-1"
+              >
+                View all <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {(!data.recent_payments || data.recent_payments.length === 0) ? (
+                <div className="p-6 text-center text-xs text-slate-400">
+                  No payments recorded recently.
+                </div>
+              ) : (
+                data.recent_payments.slice(0, 7).map((pay) => (
+                  <div key={pay.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors text-xs">
+                    <div>
+                      <div className="font-semibold text-slate-900">{pay.customer_name}</div>
+                      <div className="text-[10px] text-slate-400">
+                        {pay.payment_type === 'ADVANCE' ? 'Advance Credit' : 'Daily Settlement'} • {pay.payment_mode}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-slate-900 font-mono text-sm">
+                        {formatCurrency(pay.amount)}
+                      </div>
+                      <span className="text-[10px] text-slate-400">{pay.date}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Pending Balances (3 cols) */}
+        <div className="lg:col-span-3 bg-white border border-slate-200 rounded-xl shadow-subtle overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Pending Balances
+                </h3>
+                <p className="text-[11px] text-slate-500">Unsettled amounts</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('payments')}
+                className="text-xs text-brand-900 hover:underline font-semibold flex items-center gap-1"
+              >
+                Pay <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {(!data.pending_balances || data.pending_balances.length === 0) ? (
+                <div className="p-6 text-center text-xs text-emerald-700 bg-emerald-50/30">
+                  <CheckCircle2 className="w-4 h-4 mx-auto mb-1 text-emerald-600" />
+                  All accounts settled for this date!
+                </div>
+              ) : (
+                data.pending_balances.slice(0, 7).map((p) => (
+                  <div key={p.customer_id} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors text-xs">
+                    <div>
+                      <div className="font-semibold text-slate-900">{p.customer_name}</div>
+                      <div className="text-[10px] text-slate-400">{p.customer_code} • {p.center_name}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-rose-700 font-mono text-xs">
+                        {formatCurrency(p.due)}
+                      </div>
+                      <span className="text-[10px] text-slate-400">Sale: ₹{p.sale}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>

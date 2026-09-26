@@ -1,9 +1,15 @@
 import axios from 'axios';
 import {
   Customer,
+  Delivery,
   MilkCollection,
   MilkRate,
   Payment,
+  PaymentRecord,
+  PaymentType,
+  PaymentMode,
+  AdvanceLedgerEntry,
+  DailyPaymentSummary,
   Settlement,
   LedgerEntry,
   Expense,
@@ -11,6 +17,7 @@ import {
   CollectionCenter,
   NotificationItem,
   BusinessSettings,
+  CustomerHistoryResponse,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL
@@ -34,14 +41,54 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Response interceptor for unauthorized sessions
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && !error.config.url.includes('/auth/login')) {
+      localStorage.removeItem('milk_crm_token');
+      localStorage.removeItem('milk_crm_user');
+      if (window.location.pathname !== '/login' && !window.location.hash.includes('login')) {
+        // Clear session on 401
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth
 export const authApi = {
-  login: async (identifier: string, password: string) => {
-    const res = await api.post('/auth/login', { identifier, password });
+  login: async (email: string, password: string) => {
+    const res = await api.post('/auth/login', { email, password });
     return res.data;
+  },
+  logout: async () => {
+    try {
+      const res = await api.post('/auth/logout');
+      return res.data;
+    } catch (e) {
+      return { success: true };
+    }
   },
   me: async () => {
     const res = await api.get('/auth/me');
+    return res.data;
+  },
+};
+
+// Database Status (TiDB)
+export const dbApi = {
+  getStatus: async () => {
+    const res = await api.get<{
+      connected: boolean;
+      type: 'tidb' | 'local_fallback';
+      host: string;
+      port: number;
+      database: string;
+      usersCount: number;
+      error?: string;
+      lastChecked: string;
+    }>('/db/status');
     return res.data;
   },
 };
@@ -90,8 +137,16 @@ export const customersApi = {
     const res = await api.put<Customer>(`/customers/${id}`, data);
     return res.data;
   },
+  patch: async (id: string, data: Partial<Customer>) => {
+    const res = await api.patch<Customer>(`/customers/${id}`, data);
+    return res.data;
+  },
   delete: async (id: string) => {
     const res = await api.delete(`/customers/${id}`);
+    return res.data;
+  },
+  getHistory: async (id: string, params?: { month_year?: string; from_date?: string; to_date?: string }) => {
+    const res = await api.get<CustomerHistoryResponse>(`/customers/${id}/history`, { params });
     return res.data;
   },
 };
@@ -142,6 +197,57 @@ export const collectionsApi = {
   },
 };
 
+// Deliveries (Phase 3)
+export const deliveriesApi = {
+  getAll: async (params?: {
+    date?: string;
+    session?: 'MORNING' | 'EVENING';
+    center_id?: string;
+    search?: string;
+  }) => {
+    const res = await api.get<{
+      date: string;
+      session: 'MORNING' | 'EVENING';
+      deliveries: Delivery[];
+      count: number;
+      total_litres: number;
+    }>('/deliveries', { params });
+    return res.data;
+  },
+  getCenterTotals: async (date?: string) => {
+    const res = await api.get<{
+      date: string;
+      centers: Array<{
+        center_id: string;
+        center_name: string;
+        morning_total: number;
+        evening_total: number;
+        daily_total: number;
+      }>;
+      overall: {
+        morning_total: number;
+        evening_total: number;
+        daily_total: number;
+      };
+    }>('/deliveries/center-totals', { params: { date } });
+    return res.data;
+  },
+  save: async (data: Partial<Delivery>) => {
+    const res = await api.post<Delivery>('/deliveries', data);
+    return res.data;
+  },
+  saveBulk: async (deliveries: Array<Partial<Delivery>>) => {
+    const res = await api.post<{ message: string; saved: Delivery[] }>('/deliveries/bulk', {
+      deliveries,
+    });
+    return res.data;
+  },
+  update: async (id: string, data: Partial<Delivery>) => {
+    const res = await api.patch<Delivery>(`/deliveries/${id}`, data);
+    return res.data;
+  },
+};
+
 // Rates
 export const ratesApi = {
   getActive: async () => {
@@ -180,16 +286,68 @@ export const ratesApi = {
   },
 };
 
-// Payments
+// Payments (Phase 5)
 export const paymentsApi = {
+  getDailySummary: async (params?: { date?: string; center_id?: string; search?: string }) => {
+    const res = await api.get<{
+      date: string;
+      summaries: DailyPaymentSummary[];
+      count: number;
+      metrics: {
+        total_sale: number;
+        total_advance_used: number;
+        total_paid: number;
+        total_due: number;
+      };
+    }>('/payments/daily-summary', { params });
+    return res.data;
+  },
+  getAdvanceBalance: async (customerId: string) => {
+    const res = await api.get<{
+      total_added: number;
+      total_used: number;
+      available_balance: number;
+    }>(`/payments/advance-balance/${customerId}`);
+    return res.data;
+  },
+  getAdvanceLedger: async (params?: { customer_id?: string; from_date?: string; to_date?: string }) => {
+    const res = await api.get<AdvanceLedgerEntry[]>('/payments/advance-ledger', { params });
+    return res.data;
+  },
+  autoAdjust: async (data: { customer_id: string; date: string; sale?: number }) => {
+    const res = await api.post<{
+      customer_id: string;
+      date: string;
+      sale: number;
+      available_advance: number;
+      advance_used: number;
+      remaining_advance: number;
+      remaining_sale: number;
+    }>('/payments/auto-adjust', data);
+    return res.data;
+  },
+  recordPayment: async (data: {
+    customer_id: string;
+    date?: string;
+    amount: number;
+    payment_type: PaymentType;
+    payment_mode: PaymentMode;
+    reference_id?: string;
+    notes?: string;
+  }) => {
+    const res = await api.post<PaymentRecord>('/payments', data);
+    return res.data;
+  },
   getAll: async (params?: {
     customer_id?: string;
     center_id?: string;
+    date?: string;
     from_date?: string;
     to_date?: string;
+    payment_type?: string;
     payment_method?: string;
   }) => {
-    const res = await api.get<Payment[]>('/payments', { params });
+    const res = await api.get<PaymentRecord[]>('/payments', { params });
     return res.data;
   },
   getSummary: async (centerId?: string) => {
@@ -201,8 +359,8 @@ export const paymentsApi = {
     }>('/payments/summary', { params: { center_id: centerId } });
     return res.data;
   },
-  create: async (data: Partial<Payment>) => {
-    const res = await api.post<Payment>('/payments', data);
+  create: async (data: any) => {
+    const res = await api.post('/payments', data);
     return res.data;
   },
 };
@@ -324,12 +482,20 @@ export const centersApi = {
     const res = await api.get<CollectionCenter[]>('/centers');
     return res.data;
   },
+  getById: async (id: string) => {
+    const res = await api.get<CollectionCenter>(`/centers/${id}`);
+    return res.data;
+  },
   create: async (data: Partial<CollectionCenter>) => {
     const res = await api.post<CollectionCenter>('/centers', data);
     return res.data;
   },
   update: async (id: string, data: Partial<CollectionCenter>) => {
     const res = await api.put<CollectionCenter>(`/centers/${id}`, data);
+    return res.data;
+  },
+  patch: async (id: string, data: Partial<CollectionCenter>) => {
+    const res = await api.patch<CollectionCenter>(`/centers/${id}`, data);
     return res.data;
   },
 };
@@ -340,7 +506,12 @@ export const dashboardApi = {
     const res = await api.get<{
       kpis: {
         today_milk: number;
+        morning_milk?: number;
+        evening_milk?: number;
         today_amount: number;
+        today_sales?: number;
+        today_paid?: number;
+        today_due?: number;
         total_centers?: number;
         total_suppliers: number;
         total_registered_suppliers?: number;
@@ -350,15 +521,18 @@ export const dashboardApi = {
       center_breakdown?: Array<{
         center_id: string;
         center_name: string;
-        code: string;
-        location: string;
+        code?: string;
+        location?: string;
         morning_milk: number;
         evening_milk: number;
         today_total: number;
-        today_amount: number;
+        today_amount?: number;
+        today_sales?: number;
+        today_paid?: number;
+        today_due?: number;
         registered_suppliers: number;
-        direct_collections: number;
-        pending_payments: number;
+        direct_collections?: number;
+        pending_payments?: number;
       }>;
       morning_vs_evening: {
         morning: number;
@@ -371,6 +545,17 @@ export const dashboardApi = {
         morning: number;
         evening: number;
         total: number;
+      }>;
+      recent_deliveries?: Array<{
+        id: string;
+        customer_name: string;
+        customer_code: string;
+        center_name: string;
+        session: string;
+        actual_qty: number;
+        status: string;
+        total_amount: number;
+        date: string;
       }>;
       recent_collections: Array<{
         id: string;
@@ -389,24 +574,75 @@ export const dashboardApi = {
         status: string;
         date: string;
       }>;
-      pending_payments: Array<{
+      recent_payments?: Array<{
+        id: string;
+        customer_name: string;
+        customer_code: string;
+        amount: number;
+        payment_type: string;
+        payment_mode: string;
+        reference_id: string;
+        date: string;
+      }>;
+      pending_payments: Array<any>;
+      pending_balances?: Array<{
         customer_id: string;
         customer_name: string;
         customer_code: string;
-        mobile: string;
-        village: string;
-        total_amount: number;
+        center_name: string;
+        sale: number;
         paid: number;
-        pending: number;
-        due_date: string;
+        due: number;
       }>;
     }>('/dashboard/stats', { params: { center_id: centerId, date } });
     return res.data;
   },
 };
 
-// Reports
+// Reports (Phase 6 Complete Suite)
 export const reportsApi = {
+  // 1. Daily Milk Report
+  getDailyMilk: async (params?: { date?: string; center_id?: string }) => {
+    const res = await api.get('/reports/daily-milk', { params });
+    return res.data;
+  },
+  // 2. Center-wise Collection Report
+  getCenterWise: async (params?: { date?: string; center_id?: string }) => {
+    const res = await api.get('/reports/center-wise', { params });
+    return res.data;
+  },
+  // 3. Supplier-wise Collection Report
+  getSupplierWise: async (params?: { from_date?: string; to_date?: string; center_id?: string; customer_id?: string }) => {
+    const res = await api.get('/reports/supplier-wise', { params });
+    return res.data;
+  },
+  // 4. Daily Sales Report
+  getDailySales: async (params?: { date?: string; center_id?: string; customer_id?: string }) => {
+    const res = await api.get('/reports/daily-sales', { params });
+    return res.data;
+  },
+  // 5. Payment Report
+  getPayments: async (params?: { from_date?: string; to_date?: string; customer_id?: string; payment_type?: string }) => {
+    const res = await api.get('/reports/payments', { params });
+    return res.data;
+  },
+  // 6. Pending / Due Report
+  getPendingDue: async (params?: { date?: string; center_id?: string; customer_id?: string }) => {
+    const res = await api.get('/reports/pending-due', { params });
+    return res.data;
+  },
+  // 7. Advance Balance Report
+  getAdvanceBalance: async (params?: { center_id?: string; customer_id?: string }) => {
+    const res = await api.get('/reports/advance-balance', { params });
+    return res.data;
+  },
+  // 8. Monthly Summary Report
+  getMonthlySummary: async (params?: { month_year?: string; center_id?: string }) => {
+    const res = await api.get('/reports/monthly-summary', { params });
+    return res.data;
+  },
+
+  // Backwards compatibility aliases
   getDaily: async (params?: { date?: string; center_id?: string; session?: string }) => {
     const res = await api.get('/reports/daily', { params });
     return res.data;
@@ -429,10 +665,6 @@ export const reportsApi = {
   },
   getProfitLoss: async (params?: { from_date?: string; to_date?: string; center_id?: string }) => {
     const res = await api.get('/reports/profit-loss', { params });
-    return res.data;
-  },
-  getCenterWise: async (params?: { date?: string; to_date?: string; center_id?: string }) => {
-    const res = await api.get('/reports/center-wise', { params });
     return res.data;
   },
   getDirectCollection: async (params?: { from_date?: string; to_date?: string; center_id?: string }) => {

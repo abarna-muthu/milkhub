@@ -15,29 +15,46 @@ export interface User {
 
 export interface CollectionCenter {
   id: string;
-  name: string;
+  center_name?: string;
+  name?: string; // alias for center_name
   location: string;
-  code: string;
-  phone: string;
-  is_active: boolean;
+  code?: string;
+  phone?: string;
+  status?: 'active' | 'inactive';
+  is_active?: boolean;
+  supplier_count?: number;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Customer {
   id: string;
-  customer_code: string; // e.g. MILK001
+  customer_code: string; // e.g. SUP001
   name: string;
-  mobile: string;
-  address: string;
-  village: string;
+  phone?: string;
+  mobile?: string; // alias for phone
+  address?: string;
   area?: string;
+  village?: string; // alias for area
+  center_id?: string;
+  collection_center_id?: string; // alias for center_id
+  center_name?: string;
   cow_count: number;
   buffalo_count: number;
-  default_session: 'morning' | 'evening' | 'both';
-  collection_center_id: string;
+  default_morning_qty?: number;
+  default_evening_qty?: number;
+  default_session?: 'morning' | 'evening' | 'both';
+  rate?: number;
+  start_date?: string;
   status: 'active' | 'inactive';
   notes?: string;
   created_at: string;
+  updated_at?: string;
+  // Dynamic business metrics
+  total_milk?: number;
+  total_amount?: number;
+  total_paid?: number;
+  pending_amount?: number;
 }
 
 export type PricingType = 'fixed' | 'fat_snf';
@@ -80,6 +97,83 @@ export interface MilkCollection {
   collected_by: string;
   notes?: string;
   created_at: string;
+}
+
+export type DeliverySession = 'MORNING' | 'EVENING';
+export type DeliveryStatus = 'DELIVERED' | 'NO_MILK';
+
+export interface Delivery {
+  id: string;
+  customer_id: string;
+  center_id: string;
+  date: string; // YYYY-MM-DD
+  session: DeliverySession;
+  actual_qty: number;
+  status: DeliveryStatus;
+  created_at: string;
+  updated_at?: string;
+  // Presentation fields for daily entry table
+  customer_name?: string;
+  customer_code?: string;
+  phone?: string;
+  center_name?: string;
+  default_qty?: number;
+  rate?: number;
+  total_amount?: number;
+  is_saved?: boolean;
+}
+
+export type PaymentType = 'DAILY_PAYMENT' | 'ADVANCE';
+export type PaymentMode = 'CASH' | 'UPI' | 'BANK_TRANSFER';
+export type AdvanceLedgerType = 'ADVANCE_ADDED' | 'ADVANCE_USED';
+
+export interface PaymentRecord {
+  id: string;
+  customer_id: string;
+  date: string;
+  amount: number;
+  payment_type: PaymentType;
+  payment_mode: PaymentMode;
+  reference_id?: string;
+  notes?: string;
+  created_at: string;
+  customer_name?: string;
+  customer_code?: string;
+  center_id?: string;
+  center_name?: string;
+}
+
+export interface AdvanceLedgerEntry {
+  id: string;
+  customer_id: string;
+  date: string;
+  type: AdvanceLedgerType;
+  amount: number;
+  reference_id?: string;
+  notes?: string;
+  created_at: string;
+  customer_name?: string;
+  customer_code?: string;
+}
+
+export interface DailyPaymentSummary {
+  date: string;
+  customer_id: string;
+  customer_name: string;
+  customer_code: string;
+  center_id: string;
+  center_name: string;
+  phone?: string;
+  rate: number;
+  total_qty: number;
+  sale: number;
+  available_advance: number;
+  advance_used: number;
+  remaining_advance: number;
+  remaining_sale: number;
+  paid: number;
+  due: number;
+  status: 'PAID' | 'PARTIAL' | 'PENDING' | 'OVERPAID';
 }
 
 export interface Payment {

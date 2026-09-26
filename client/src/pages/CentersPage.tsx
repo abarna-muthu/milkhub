@@ -60,28 +60,39 @@ export const CentersPage: React.FC<CentersPageProps> = ({ onNavigate }) => {
 
   const handleOpenEdit = (center: CollectionCenter) => {
     setEditingCenter(center);
-    setName(center.name);
+    setName(center.center_name || center.name || '');
     setLocation(center.location);
-    setCode(center.code);
-    setPhone(center.phone);
+    setCode(center.code || '');
+    setPhone(center.phone || '');
     setIsModalOpen(true);
   };
 
   const handleSaveCenter = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !location.trim() || !code.trim()) {
-      showToast('Name, Location, and Code are required', 'warning');
+    if (!name.trim() || !location.trim()) {
+      showToast('Center Name and Location are required', 'warning');
       return;
     }
 
     setIsSubmitting(true);
     try {
       if (editingCenter) {
-        await centersApi.update(editingCenter.id, { name, location, code, phone });
-        showToast('Center updated successfully', 'success');
+        await centersApi.patch(editingCenter.id, {
+          center_name: name.trim(),
+          location: location.trim(),
+          code: code.trim() || undefined,
+          phone: phone.trim() || undefined,
+        });
+        showToast('Collection center updated successfully', 'success');
       } else {
-        await centersApi.create({ name, location, code, phone });
-        showToast('New collection center added', 'success');
+        await centersApi.create({
+          center_name: name.trim(),
+          location: location.trim(),
+          code: code.trim() || undefined,
+          phone: phone.trim() || undefined,
+          status: 'active',
+        });
+        showToast('New collection center created successfully', 'success');
       }
 
       setIsModalOpen(false);
@@ -95,18 +106,15 @@ export const CentersPage: React.FC<CentersPageProps> = ({ onNavigate }) => {
   };
 
   const handleToggleActive = async (center: CollectionCenter) => {
-    if (!isAdmin) {
-      showToast('Only Administrators can modify centers', 'warning');
-      return;
-    }
-    const newStatus = !center.is_active;
+    const isCurrentlyActive = center.status === 'active' || center.is_active;
+    const newStatus = isCurrentlyActive ? 'inactive' : 'active';
     try {
-      await centersApi.update(center.id, { is_active: newStatus });
-      showToast(`Center ${newStatus ? 'activated' : 'deactivated'}`, 'info');
+      await centersApi.patch(center.id, { status: newStatus });
+      showToast(`Center ${newStatus === 'active' ? 'activated' : 'deactivated'}`, 'info');
       loadCentersWithMetrics();
       refreshCenters();
     } catch (err) {
-      showToast('Failed to change status', 'error');
+      showToast('Failed to change center status', 'error');
     }
   };
 

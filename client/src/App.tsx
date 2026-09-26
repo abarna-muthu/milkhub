@@ -20,10 +20,11 @@ import { ReportsPage } from './pages/ReportsPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { StaffPage } from './pages/StaffPage';
 import { CentersPage } from './pages/CentersPage';
+import { DeliveriesPage } from './pages/DeliveriesPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 function MainApp() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitializing } = useAuth();
   const [currentPath, setCurrentPath] = useState<string>('dashboard');
   const [routeParam, setRouteParam] = useState<string | undefined>();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -33,6 +34,20 @@ function MainApp() {
     setRouteParam(param);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // While verifying session on refresh
+  if (isInitializing) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-100">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-xl bg-slate-900 text-white mx-auto flex items-center justify-center font-bold text-lg shadow-md animate-pulse">
+            MH
+          </div>
+          <p className="mt-3 text-xs font-semibold text-slate-600">Verifying session...</p>
+        </div>
+      </div>
+    );
+  }
 
   // If not logged in, show Login page
   if (!isAuthenticated || currentPath === 'login') {
@@ -78,6 +93,14 @@ function MainApp() {
             )}
 
             {currentPath === 'collection' && <DailyCollectionPage onNavigate={handleNavigate} />}
+
+            {(currentPath === 'deliveries' || currentPath === 'deliveries/morning' || currentPath === 'deliveries-morning') && (
+              <DeliveriesPage initialSession="MORNING" onNavigate={handleNavigate} />
+            )}
+
+            {(currentPath === 'deliveries/evening' || currentPath === 'deliveries-evening') && (
+              <DeliveriesPage initialSession="EVENING" onNavigate={handleNavigate} />
+            )}
 
             {currentPath === 'rates' && <MilkRatesPage onNavigate={handleNavigate} />}
 

@@ -6,6 +6,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "test:db": "tsx src/test-tidb.ts",
     "build": "tsc",
     "start": "node dist/server.js"
   },

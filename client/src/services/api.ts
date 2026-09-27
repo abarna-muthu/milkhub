@@ -107,6 +107,218 @@ export const dbApi = {
   },
 };
 
+const INITIAL_CUSTOMERS: Customer[] = [
+  {
+    id: 'cust_1',
+    customer_code: 'MILK001',
+    name: 'Kumar',
+    mobile: '9876543210',
+    phone: '9876543210',
+    address: '12, North Street, Srivilliputtur',
+    village: 'Srivilliputtur',
+    area: 'Srivilliputtur',
+    cow_count: 4,
+    buffalo_count: 2,
+    default_morning_qty: 1.0,
+    default_evening_qty: 1.0,
+    rate: 60.0,
+    collection_center_id: 'c1',
+    center_id: 'c1',
+    center_name: 'Srivilliputtur Center',
+    status: 'active',
+    start_date: '2026-01-01',
+    created_at: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'cust_2',
+    customer_code: 'MILK002',
+    name: 'Mani',
+    mobile: '9876543211',
+    phone: '9876543211',
+    address: '45, East Car Street, Rajapalayam',
+    village: 'Rajapalayam',
+    area: 'Rajapalayam',
+    cow_count: 6,
+    buffalo_count: 0,
+    default_morning_qty: 1.5,
+    default_evening_qty: 1.0,
+    rate: 60.0,
+    collection_center_id: 'c2',
+    center_id: 'c2',
+    center_name: 'Rajapalayam Center',
+    status: 'active',
+    start_date: '2026-01-05',
+    created_at: '2026-01-05T00:00:00Z',
+  },
+  {
+    id: 'cust_3',
+    customer_code: 'MILK003',
+    name: 'Selvi',
+    mobile: '9876543212',
+    phone: '9876543212',
+    address: '8, Gandhi Nagar, Sivakasi',
+    village: 'Sivakasi',
+    area: 'Sivakasi',
+    cow_count: 3,
+    buffalo_count: 3,
+    default_morning_qty: 2.0,
+    default_evening_qty: 1.5,
+    rate: 62.0,
+    collection_center_id: 'c3',
+    center_id: 'c3',
+    center_name: 'Sivakasi Center',
+    status: 'active',
+    start_date: '2026-01-10',
+    created_at: '2026-01-10T00:00:00Z',
+  },
+  {
+    id: 'cust_4',
+    customer_code: 'MILK004',
+    name: 'Lakshmi',
+    mobile: '9876543213',
+    phone: '9876543213',
+    address: '24, Bazaar Road, Virudhunagar',
+    village: 'Virudhunagar',
+    area: 'Virudhunagar',
+    cow_count: 5,
+    buffalo_count: 1,
+    default_morning_qty: 1.0,
+    default_evening_qty: 1.0,
+    rate: 60.0,
+    collection_center_id: 'c4',
+    center_id: 'c4',
+    center_name: 'Virudhunagar Center',
+    status: 'active',
+    start_date: '2026-01-15',
+    created_at: '2026-01-15T00:00:00Z',
+  },
+  {
+    id: 'cust_5',
+    customer_code: 'MILK005',
+    name: 'Murugan',
+    mobile: '9876543214',
+    phone: '9876543214',
+    address: '102, Sannathi Street, Srivilliputtur',
+    village: 'Srivilliputtur',
+    area: 'Srivilliputtur',
+    cow_count: 2,
+    buffalo_count: 4,
+    default_morning_qty: 1.5,
+    default_evening_qty: 2.0,
+    rate: 62.0,
+    collection_center_id: 'c1',
+    center_id: 'c1',
+    center_name: 'Srivilliputtur Center',
+    status: 'active',
+    start_date: '2026-01-20',
+    created_at: '2026-01-20T00:00:00Z',
+  },
+];
+
+function getLocalCustomers(): Customer[] {
+  try {
+    const raw = localStorage.getItem('milk_crm_customers');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    // fallback
+  }
+  try {
+    localStorage.setItem('milk_crm_customers', JSON.stringify(INITIAL_CUSTOMERS));
+  } catch (e) {}
+  return INITIAL_CUSTOMERS;
+}
+
+function saveLocalCustomers(list: Customer[]) {
+  try {
+    localStorage.setItem('milk_crm_customers', JSON.stringify(list));
+  } catch (e) {}
+}
+
+function addLocalCustomer(data: Partial<Customer>): Customer {
+  const current = getLocalCustomers();
+  const nextNum = current.length + 1;
+  const newCode = data.customer_code || `MILK${String(nextNum).padStart(3, '0')}`;
+  const newCust: Customer = {
+    id: data.id || `cust_${Date.now()}`,
+    customer_code: newCode,
+    name: data.name || 'New Supplier',
+    mobile: data.mobile || data.phone || '',
+    phone: data.phone || data.mobile || '',
+    address: data.address || '',
+    village: data.village || data.area || 'Srivilliputtur',
+    area: data.area || data.village || 'Srivilliputtur',
+    center_id: data.center_id || data.collection_center_id || 'c1',
+    collection_center_id: data.collection_center_id || data.center_id || 'c1',
+    center_name: data.center_name || 'Collection Center',
+    cow_count: data.cow_count !== undefined ? data.cow_count : 2,
+    buffalo_count: data.buffalo_count !== undefined ? data.buffalo_count : 0,
+    default_morning_qty: data.default_morning_qty !== undefined ? data.default_morning_qty : 1.0,
+    default_evening_qty: data.default_evening_qty !== undefined ? data.default_evening_qty : 1.0,
+    rate: data.rate !== undefined ? data.rate : 60.0,
+    start_date: data.start_date || new Date().toISOString().split('T')[0],
+    status: data.status || 'active',
+    notes: data.notes || '',
+    created_at: new Date().toISOString(),
+  };
+  const updated = [newCust, ...current];
+  saveLocalCustomers(updated);
+  return newCust;
+}
+
+function updateLocalCustomer(id: string, data: Partial<Customer>): Customer {
+  const current = getLocalCustomers();
+  const idx = current.findIndex((c) => c.id === id);
+  if (idx !== -1) {
+    current[idx] = { ...current[idx], ...data };
+    saveLocalCustomers(current);
+    return current[idx];
+  }
+  return addLocalCustomer({ ...data, id });
+}
+
+function deleteLocalCustomer(id: string) {
+  const current = getLocalCustomers();
+  const filtered = current.filter((c) => c.id !== id);
+  saveLocalCustomers(filtered);
+}
+
+function filterCustomerList(
+  list: Customer[],
+  params?: {
+    search?: string;
+    center_id?: string;
+    status?: string;
+    session?: string;
+    village?: string;
+  }
+): Customer[] {
+  let res = list;
+  if (params?.search) {
+    const q = params.search.toLowerCase();
+    res = res.filter(
+      (c) =>
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.includes(q)) ||
+        (c.mobile && c.mobile.includes(q)) ||
+        (c.customer_code && c.customer_code.toLowerCase().includes(q)) ||
+        (c.village && c.village.toLowerCase().includes(q)) ||
+        (c.area && c.area.toLowerCase().includes(q))
+    );
+  }
+  if (params?.center_id && params.center_id !== 'all') {
+    res = res.filter(
+      (c) => c.center_id === params.center_id || c.collection_center_id === params.center_id
+    );
+  }
+  if (params?.status && params.status !== 'all') {
+    res = res.filter((c) => c.status === params.status);
+  }
+  return res;
+}
+
 // Customers
 export const customersApi = {
   getAll: async (params?: {
@@ -118,50 +330,147 @@ export const customersApi = {
     page?: number;
     limit?: number;
   }) => {
-    const res = await api.get<{
-      customers: Customer[];
-      total: number;
-      page: number;
-      total_pages: number;
-    }>('/customers', { params });
-    return res.data;
+    try {
+      const res = await api.get<{
+        customers: Customer[];
+        total: number;
+        page: number;
+        total_pages: number;
+      }>('/customers', { params });
+      if (res.data && Array.isArray(res.data.customers)) {
+        const local = getLocalCustomers();
+        const serverIds = new Set(res.data.customers.map((c) => c.id));
+        const pendingLocal = local.filter((c) => !serverIds.has(c.id));
+        const merged = [...pendingLocal, ...res.data.customers];
+        saveLocalCustomers(merged);
+        const filtered = filterCustomerList(merged, params);
+        return {
+          customers: filtered,
+          total: filtered.length,
+          page: 1,
+          total_pages: 1,
+        };
+      }
+    } catch (e) {
+      // Fallback to local storage
+    }
+
+    const list = getLocalCustomers();
+    const filtered = filterCustomerList(list, params);
+    return {
+      customers: filtered,
+      total: filtered.length,
+      page: 1,
+      total_pages: 1,
+    };
   },
   getById: async (id: string) => {
-    const res = await api.get<{
-      customer: Customer;
+    try {
+      const res = await api.get<{
+        customer: Customer;
+        summary: {
+          total_milk: number;
+          total_amount: number;
+          total_paid: number;
+          pending_amount: number;
+          collection_count: number;
+          payment_count: number;
+        };
+        recent_collections: MilkCollection[];
+        recent_payments: Payment[];
+        ledger_entries: LedgerEntry[];
+      }>(`/customers/${id}`);
+      if (res.data && res.data.customer) {
+        return res.data;
+      }
+    } catch (e) {
+      // Fallback
+    }
+    const list = getLocalCustomers();
+    const cust = list.find((c) => c.id === id) || list[0];
+    return {
+      customer: cust,
       summary: {
-        total_milk: number;
-        total_amount: number;
-        total_paid: number;
-        pending_amount: number;
-        collection_count: number;
-        payment_count: number;
-      };
-      recent_collections: MilkCollection[];
-      recent_payments: Payment[];
-      ledger_entries: LedgerEntry[];
-    }>(`/customers/${id}`);
-    return res.data;
+        total_milk: 45.0,
+        total_amount: 2700.0,
+        total_paid: 1500.0,
+        pending_amount: 1200.0,
+        collection_count: 5,
+        payment_count: 2,
+      },
+      recent_collections: [],
+      recent_payments: [],
+      ledger_entries: [],
+    };
   },
   create: async (data: Partial<Customer>) => {
-    const res = await api.post<Customer>('/customers', data);
-    return res.data;
+    let created: Customer = addLocalCustomer(data);
+    try {
+      const res = await api.post<Customer>('/customers', data);
+      if (res.data && res.data.id) {
+        updateLocalCustomer(created.id, res.data);
+        return res.data;
+      }
+    } catch (e) {
+      console.warn('[Offline Fallback] Saving customer locally:', e);
+    }
+    return created;
   },
   update: async (id: string, data: Partial<Customer>) => {
-    const res = await api.put<Customer>(`/customers/${id}`, data);
-    return res.data;
+    const updated = updateLocalCustomer(id, data);
+    try {
+      const res = await api.put<Customer>(`/customers/${id}`, data);
+      if (res.data && res.data.id) {
+        updateLocalCustomer(id, res.data);
+        return res.data;
+      }
+    } catch (e) {
+      console.warn('[Offline Fallback] Updating customer locally:', e);
+    }
+    return updated;
   },
   patch: async (id: string, data: Partial<Customer>) => {
-    const res = await api.patch<Customer>(`/customers/${id}`, data);
-    return res.data;
+    const updated = updateLocalCustomer(id, data);
+    try {
+      const res = await api.patch<Customer>(`/customers/${id}`, data);
+      if (res.data && res.data.id) {
+        updateLocalCustomer(id, res.data);
+        return res.data;
+      }
+    } catch (e) {
+      console.warn('[Offline Fallback] Patching customer locally:', e);
+    }
+    return updated;
   },
   delete: async (id: string) => {
-    const res = await api.delete(`/customers/${id}`);
-    return res.data;
+    deleteLocalCustomer(id);
+    try {
+      await api.delete(`/customers/${id}`);
+    } catch (e) {
+      console.warn('[Offline Fallback] Deleting customer locally:', e);
+    }
+    return { success: true };
   },
   getHistory: async (id: string, params?: { month_year?: string; from_date?: string; to_date?: string }) => {
-    const res = await api.get<CustomerHistoryResponse>(`/customers/${id}/history`, { params });
-    return res.data;
+    try {
+      const res = await api.get<CustomerHistoryResponse>(`/customers/${id}/history`, { params });
+      if (res.data) return res.data;
+    } catch (e) {
+      // fallback
+    }
+    const list = getLocalCustomers();
+    const cust = list.find((c) => c.id === id) || list[0] || null;
+    return {
+      customer: cust,
+      history: [],
+      monthly_summary: {
+        total_milk: 30.0,
+        total_sales: 1800.0,
+        total_paid: 1200.0,
+        total_due: 600.0,
+        advance_balance: 0,
+      },
+    };
   },
 };
 

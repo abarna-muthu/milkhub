@@ -82,6 +82,30 @@ class TiDBService {
       created_at: '2026-01-15T08:00:00Z',
       updated_at: '2026-01-15T08:00:00Z',
     },
+    {
+      id: 'c3',
+      center_name: 'Sivakasi Center',
+      name: 'Sivakasi Center',
+      location: 'Sattur Road, Sivakasi',
+      code: 'SVKS',
+      phone: '+91 98421 11222',
+      status: 'active',
+      is_active: true,
+      created_at: '2026-02-01T08:00:00Z',
+      updated_at: '2026-02-01T08:00:00Z',
+    },
+    {
+      id: 'c4',
+      center_name: 'Virudhunagar Center',
+      name: 'Virudhunagar Center',
+      location: 'Collectorate Junction, Virudhunagar',
+      code: 'VDR',
+      phone: '+91 98421 11223',
+      status: 'active',
+      is_active: true,
+      created_at: '2026-02-10T08:00:00Z',
+      updated_at: '2026-02-10T08:00:00Z',
+    },
   ];
 
   // Local fallback storage for Customers / Milk Suppliers

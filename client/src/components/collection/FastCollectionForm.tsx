@@ -200,7 +200,8 @@ export const FastCollectionForm: React.FC<FastCollectionFormProps> = ({
         notes,
       });
 
-      const centerObj = centers.find((c) => c.id === centerId);
+      const safeCenters = Array.isArray(centers) ? centers : [];
+      const centerObj = safeCenters.find((c) => c && c.id === centerId);
       const supplierDisplayName = isDirect
         ? (walkInName.trim() || 'Direct / Walk-in Supplier')
         : selectedCustomer?.name;
@@ -232,7 +233,8 @@ export const FastCollectionForm: React.FC<FastCollectionFormProps> = ({
     }
   };
 
-  const selectedCenterObj = centers.find((c) => c.id === centerId);
+  const safeCenters = Array.isArray(centers) ? centers : [];
+  const selectedCenterObj = safeCenters.find((c) => c && c.id === centerId);
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-subtle overflow-hidden">

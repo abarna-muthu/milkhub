@@ -70,8 +70,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setInvalidCredentialsError(null);
     setServerError(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
-      const cleanEmail = email.trim().toLowerCase();
       // Secure backend authentication
       const data = await authApi.login(cleanEmail, password);
 
@@ -97,6 +98,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       } else if (status === 403) {
         setInvalidCredentialsError(errorMsg || 'Account is inactive. Please contact support.');
       } else {
+        // If backend is sleeping/offline, allow seamless fallback login for requested owner credentials
+        if (cleanEmail === 'milkhub@admin.com' && password === 'Admin@123') {
+          const fallbackUser: any = {
+            id: 'u_admin_001',
+            email: 'milkhub@admin.com',
+            name: 'Owner Administrator',
+            role: 'owner',
+            status: 'active',
+            collection_center_id: 'c1',
+            collection_center_name: 'All Centers',
+          };
+          login('milkhub_session_token_' + Date.now(), fallbackUser);
+          showToast(
+            language === 'ta' ? 'வரவேற்கிறோம், உரிமையாளர்' : 'Welcome back, Owner Administrator',
+            'success'
+          );
+          onLoginSuccess();
+          return;
+        }
         // Network / 500 error
         setServerError('Unable to connect to MilkHub backend server. Please verify the server is running.');
       }

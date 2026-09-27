@@ -41,16 +41,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor for unauthorized sessions
+// Response interceptor for unauthorized sessions & HTML fallback detection
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // If an API request returned an HTML document (e.g. from Vercel rewrite of /api to /index.html)
+    if (typeof response.data === 'string' && response.data.trim().toLowerCase().startsWith('<!doctype')) {
+      const err: any = new Error('API returned HTML page (backend service unreachable)');
+      err.response = {
+        status: 503,
+        data: { error: 'Backend API service is not available' },
+      };
+      return Promise.reject(err);
+    }
+    return response;
+  },
   (error) => {
-    if (error.response?.status === 401 && !error.config.url.includes('/auth/login')) {
+    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
       localStorage.removeItem('milk_crm_token');
       localStorage.removeItem('milk_crm_user');
-      if (window.location.pathname !== '/login' && !window.location.hash.includes('login')) {
-        // Clear session on 401
-      }
     }
     return Promise.reject(error);
   }

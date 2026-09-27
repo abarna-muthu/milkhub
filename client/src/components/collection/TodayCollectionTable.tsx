@@ -101,7 +101,7 @@ export const TodayCollectionTable: React.FC<TodayCollectionTableProps> = ({
     }
   };
 
-  const activeCenter = centers.find((c) => c.id === selectedCenterId);
+  const activeCenter = (Array.isArray(centers) ? centers : []).find((c) => c && c.id === selectedCenterId);
 
   return (
     <div className="space-y-6 mt-6">

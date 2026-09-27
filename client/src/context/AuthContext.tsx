@@ -50,11 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             clearSession();
           }
         } catch (err: any) {
-          // If token expired or invalid (401), clear local session
-          if (err?.response?.status === 401) {
-            clearSession();
-          }
-          // If offline / network error, retain existing user state so user isn't abruptly booted
+          console.warn('[Auth] Session validation failed, resetting session to login:', err);
+          clearSession();
         }
       } else {
         clearSession();

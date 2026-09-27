@@ -73,7 +73,7 @@ async function runVerification() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     },
-    { email: 'admin@milkhub.com', password: 'WrongPassword123' }
+    { email: 'milkhub@admin.com', password: 'WrongPassword123' }
   );
   console.log(`Status: ${badLoginRes.statusCode} (Expected: 401)`, badLoginRes.data);
   if (badLoginRes.statusCode !== 401) throw new Error('Invalid login was not rejected!');
@@ -88,7 +88,7 @@ async function runVerification() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     },
-    { email: 'admin@milkhub.com', password: '@MilkHub#123' }
+    { email: 'milkhub@admin.com', password: 'Admin@123' }
   );
   console.log(`Status: ${validLoginRes.statusCode} (Expected: 200)`);
   console.log('User info:', validLoginRes.data.user);

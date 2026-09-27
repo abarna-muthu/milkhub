@@ -48,7 +48,7 @@ async function runPhase7QA() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     },
-    { email: 'admin@milkhub.com', password: '@MilkHub#123' }
+    { email: 'milkhub@admin.com', password: 'Admin@123' }
   );
 
   if (loginRes.statusCode !== 200 || !loginRes.data?.token) {
@@ -536,7 +536,7 @@ async function runPhase7QA() {
 async function createTestSupplier(name: string, code: string, rate: number = 60.0) {
   const loginRes = await makeRequest(
     { hostname: '127.0.0.1', port: 5000, path: '/api/auth/login', method: 'POST', headers: { 'Content-Type': 'application/json' } },
-    { email: 'admin@milkhub.com', password: '@MilkHub#123' }
+    { email: 'milkhub@admin.com', password: 'Admin@123' }
   );
   const token = loginRes.data.token;
   const res = await makeRequest(

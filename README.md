@@ -38,5 +38,5 @@ npm run dev:client
 ```
 
 ### Default Credentials
-- **Username:** `admin@MilkHub`
-- **Password:** `@MilkHub#123`
+- **Username:** `milkhub@admin.com`
+- **Password:** `Admin@123`

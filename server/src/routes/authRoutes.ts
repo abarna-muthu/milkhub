@@ -16,7 +16,7 @@ export const authRouter = Router();
  */
 authRouter.post('/login', async (req: Request, res: Response) => {
   try {
-    const emailInput = req.body.email || req.body.identifier;
+    const emailInput = req.body.email || req.body.identifier || req.body.username;
     const passwordInput = req.body.password;
 
     // 1. Validate Email Presence & Format

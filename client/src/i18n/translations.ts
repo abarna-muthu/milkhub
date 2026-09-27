@@ -389,10 +389,10 @@ export const translations = {
     sign_in: 'Sign In',
     demo_accounts: 'Demo Accounts',
     quick_access_logged_in: 'Quick access: Logged in',
-    invalid_credentials: 'Invalid Username or Password! (username: admin@MilkHub, password: @MilkHub#123)',
+    invalid_credentials: 'Invalid Username or Password! (username: milkhub@admin.com, password: Admin@123)',
     admin_credentials_box: 'Admin Login Credentials',
     autofill: 'Fill Credentials',
-    login_instruction: 'Enter admin@MilkHub and @MilkHub#123 to unlock the CRM',
+    login_instruction: 'Enter milkhub@admin.com and Admin@123 to unlock the CRM',
   },
 
   ta: {
@@ -783,9 +783,9 @@ export const translations = {
     sign_in: 'உள்நுழைக',
     demo_accounts: 'மாதிரி கணக்குகள்',
     quick_access_logged_in: 'விரைவு உள்நுழைவு வெற்றிகரமாக முடிந்தது',
-    invalid_credentials: 'தவறான பயனர் பெயர் அல்லது கடவுச்சொல்! (பயனர் பெயர்: admin@MilkHub, கடவுச்சொல்: @MilkHub#123)',
+    invalid_credentials: 'தவறான பயனர் பெயர் அல்லது கடவுச்சொல்! (பயனர் பெயர்: milkhub@admin.com, கடவுச்சொல்: Admin@123)',
     admin_credentials_box: 'நிர்வாகி உள்நுழைவு விவரங்கள்',
     autofill: 'தானாக நிரப்புக',
-    login_instruction: 'CRM திறக்க admin@MilkHub மற்றும் @MilkHub#123 ஆகியவற்றை உள்ளிடவும்',
+    login_instruction: 'CRM திறக்க milkhub@admin.com மற்றும் Admin@123 ஆகியவற்றை உள்ளிடவும்',
   },
 };

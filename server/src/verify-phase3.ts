@@ -43,7 +43,7 @@ async function runPhase3Verification() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     },
-    { email: 'admin@milkhub.com', password: '@MilkHub#123' }
+    { email: 'milkhub@admin.com', password: 'Admin@123' }
   );
 
   if (loginRes.statusCode !== 200 || !loginRes.data?.token) {

@@ -48,8 +48,8 @@ class TiDBService {
   private fallbackUsers: TiDBUser[] = [
     {
       id: 'u_admin_001',
-      email: (process.env.DEFAULT_OWNER_EMAIL || 'admin@milkhub.com').toLowerCase(),
-      password_hash: hashPassword(process.env.DEFAULT_OWNER_PASSWORD || '@MilkHub#123'),
+      email: (process.env.DEFAULT_OWNER_EMAIL || 'milkhub@admin.com').toLowerCase(),
+      password_hash: hashPassword(process.env.DEFAULT_OWNER_PASSWORD || 'Admin@123'),
       status: 'active',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -324,19 +324,25 @@ class TiDBService {
         );
       `);
 
-      // Seed default owner if empty
-      const [userRows]: any = await connection.query('SELECT COUNT(*) as count FROM users');
-      if ((userRows[0]?.count || 0) === 0) {
-        const defaultEmail = (process.env.DEFAULT_OWNER_EMAIL || 'admin@milkhub.com').toLowerCase();
-        const defaultPassword = process.env.DEFAULT_OWNER_PASSWORD || '@MilkHub#123';
-        const defaultHash = hashPassword(defaultPassword);
+      // Seed or update default owner
+      const defaultEmail = (process.env.DEFAULT_OWNER_EMAIL || 'milkhub@admin.com').toLowerCase();
+      const defaultPassword = process.env.DEFAULT_OWNER_PASSWORD || 'Admin@123';
+      const defaultHash = hashPassword(defaultPassword);
 
+      const [userRows]: any = await connection.query('SELECT id FROM users WHERE LOWER(email) = ? OR id = ? OR LOWER(email) = ?', [defaultEmail, 'u_admin_001', 'admin@milkhub.com']);
+      if (!userRows || userRows.length === 0) {
         await connection.query(
           `INSERT INTO users (id, email, password_hash, status, created_at, updated_at) 
            VALUES (?, ?, ?, 'active', NOW(), NOW())`,
           ['u_admin_001', defaultEmail, defaultHash]
         );
         console.log(`[TiDB] Default Owner seeded: ${defaultEmail}`);
+      } else {
+        await connection.query(
+          'UPDATE users SET email = ?, password_hash = ?, status = ? WHERE id = ?',
+          [defaultEmail, defaultHash, 'active', userRows[0].id]
+        );
+        console.log(`[TiDB] Owner user synchronized: ${defaultEmail}`);
       }
 
       // Seed default centers if empty
@@ -404,7 +410,7 @@ class TiDBService {
     }
 
     const found = this.fallbackUsers.find(
-      (u) => u.email.toLowerCase() === cleanEmail || (cleanEmail === 'admin@milkhub' && u.email === 'admin@milkhub.com')
+      (u) => u.email.toLowerCase() === cleanEmail
     );
     return found || null;
   }

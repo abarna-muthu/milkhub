@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, ArrowRight, Lock, Mail, Eye, EyeOff, AlertCircle, Database } from 'lucide-react';
+import { ArrowRight, Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -105,18 +105,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleAutofillOwner = () => {
-    setEmail('admin@milkhub.com');
-    setPassword('@MilkHub#123');
-    setValidationError(null);
-    setInvalidCredentialsError(null);
-    setServerError(null);
-    showToast(
-      language === 'ta' ? 'உரிமையாளர் விவரங்கள் நிரப்பப்பட்டன' : 'Owner credentials auto-filled',
-      'info'
-    );
-  };
-
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       {/* Brand Header */}
@@ -178,7 +166,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     if (validationError) setValidationError(null);
                     if (invalidCredentialsError) setInvalidCredentialsError(null);
                   }}
-                  placeholder="admin@milkhub.com"
+                  placeholder="milkhub@admin.com"
                   className="w-full h-10 pl-9 pr-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 text-slate-900 font-medium transition"
                   disabled={isLoading}
                 />
@@ -249,40 +237,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               {isLoading ? 'Verifying Credentials...' : 'Sign In to MilkHub'}
             </Button>
           </form>
-
-          {/* Quick Owner Autofill Helper */}
-          <div className="mt-6 pt-5 border-t border-slate-200">
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                  <Shield className="w-4 h-4 text-emerald-600" />
-                  <span>Default Owner Account</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAutofillOwner}
-                  className="text-[11px] font-semibold text-slate-900 hover:text-black underline cursor-pointer"
-                >
-                  Auto-fill
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-200">
-                <div className="bg-white p-2 rounded border border-slate-200">
-                  <div className="text-[10px] text-slate-500 font-semibold uppercase">Email</div>
-                  <div className="font-mono font-bold text-slate-900 text-xs mt-0.5 truncate">
-                    admin@milkhub.com
-                  </div>
-                </div>
-                <div className="bg-white p-2 rounded border border-slate-200">
-                  <div className="text-[10px] text-slate-500 font-semibold uppercase">Password</div>
-                  <div className="font-mono font-bold text-slate-900 text-xs mt-0.5">
-                    @MilkHub#123
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

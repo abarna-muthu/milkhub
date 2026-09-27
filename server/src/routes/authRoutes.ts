@@ -39,7 +39,22 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     }
 
     // 3. Find User in TiDB Users Table (or local fallback)
-    const user = await tidb.findUserByEmail(cleanEmail);
+    let user = await tidb.findUserByEmail(cleanEmail);
+
+    // Fallback to store if not found in TiDB
+    if (!user) {
+      const sUser = store.getUserByEmail(cleanEmail);
+      if (sUser) {
+        user = {
+          id: sUser.id,
+          email: sUser.email,
+          password_hash: sUser.password || '',
+          status: (sUser.status as any) || 'active',
+          created_at: sUser.created_at,
+          updated_at: sUser.created_at,
+        };
+      }
+    }
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });

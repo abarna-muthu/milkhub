@@ -1,683 +1,618 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Milk,
-  IndianRupee,
-  Users,
-  AlertCircle,
-  TrendingUp,
   Sun,
   Moon,
+  Calendar,
+  IndianRupee,
+  Users,
+  CreditCard,
+  Wallet,
+  TrendingDown,
   ArrowRight,
   RefreshCw,
-  Eye,
-  Plus,
-  Building2,
-  Calendar,
+  Sparkles,
   CheckCircle2,
+  AlertCircle,
   Clock,
-  CreditCard,
+  PlusCircle,
   FileText,
+  History,
+  ShieldCheck,
+  Milk,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { customerApi, deliveryApi, salesApi, paymentApi } from '../services/api';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  Cell,
-} from 'recharts';
-import { StatCard } from '../components/common/StatCard';
-import { Badge } from '../components/common/Badge';
-import { Button } from '../components/common/Button';
-import { useLanguage } from '../context/LanguageContext';
-import { useCenter } from '../context/CenterContext';
-import { dashboardApi } from '../services/api';
-import { formatCurrency, formatLitres, formatPercent } from '../utils/formatters';
+  Customer,
+  DayWiseSaleItem,
+  DeliveryItem,
+  Payment,
+  CustomerAdvanceInfo,
+} from '../types';
+import { useToast } from '../context/ToastContext';
 
 interface DashboardPageProps {
-  onNavigate: (path: string, param?: string) => void;
+  onNavigate: (path: string) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
-  const { t } = useLanguage();
-  const { centers, selectedCenterId, setSelectedCenterId, selectedCenterName } = useCenter();
+  const { user, dbStatus, refreshDbStatus } = useAuth();
+  const { showToast } = useToast();
 
-  // Date Filter State: Today, Yesterday, Custom Date
-  const getTodayStr = () => new Date().toISOString().split('T')[0];
-  const getYesterdayStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
-  };
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const [dateMode, setDateMode] = useState<'today' | 'yesterday' | 'custom'>('today');
-  const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
-  const [isLoading, setIsLoading] = useState(true);
+  // Core Data
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [morningDeliveries, setMorningDeliveries] = useState<DeliveryItem[]>([]);
+  const [eveningDeliveries, setEveningDeliveries] = useState<DeliveryItem[]>([]);
+  const [dayWiseSales, setDayWiseSales] = useState<DayWiseSaleItem[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [customerAdvances, setCustomerAdvances] = useState<Record<string, CustomerAdvanceInfo>>({});
 
-  const [data, setData] = useState<{
-    kpis: {
-      today_milk: number;
-      morning_milk?: number;
-      evening_milk?: number;
-      today_amount: number;
-      today_sales?: number;
-      today_paid?: number;
-      today_due?: number;
-      total_centers?: number;
-      total_suppliers: number;
-      total_registered_suppliers?: number;
-      direct_collections_today?: number;
-      pending_payments: number;
-    };
-    center_breakdown?: Array<{
-      center_id: string;
-      center_name: string;
-      code?: string;
-      location?: string;
-      morning_milk: number;
-      evening_milk: number;
-      today_total: number;
-      today_amount?: number;
-      today_sales?: number;
-      today_paid?: number;
-      today_due?: number;
-      registered_suppliers: number;
-    }>;
-    morning_vs_evening: {
-      morning: number;
-      evening: number;
-      total: number;
-    };
-    weekly_collection: Array<{
-      date: string;
-      day: string;
-      morning: number;
-      evening: number;
-      total: number;
-    }>;
-    recent_deliveries?: Array<{
-      id: string;
-      customer_name: string;
-      customer_code: string;
-      center_name: string;
-      session: string;
-      actual_qty: number;
-      status: string;
-      total_amount: number;
-      date: string;
-    }>;
-    recent_payments?: Array<{
-      id: string;
-      customer_name: string;
-      customer_code: string;
-      amount: number;
-      payment_type: string;
-      payment_mode: string;
-      reference_id: string;
-      date: string;
-    }>;
-    pending_payments: Array<any>;
-    pending_balances?: Array<{
-      customer_id: string;
-      customer_name: string;
-      customer_code: string;
-      center_name: string;
-      sale: number;
-      paid: number;
-      due: number;
-    }>;
-  }>({
-    kpis: {
-      today_milk: 0,
-      morning_milk: 0,
-      evening_milk: 0,
-      today_amount: 0,
-      today_sales: 0,
-      today_paid: 0,
-      today_due: 0,
-      total_centers: 0,
-      total_suppliers: 0,
-      pending_payments: 0,
-    },
-    center_breakdown: [],
-    morning_vs_evening: { morning: 0, evening: 0, total: 0 },
-    weekly_collection: [],
-    recent_deliveries: [],
-    recent_payments: [],
-    pending_payments: [],
-    pending_balances: [],
-  });
-
-  const handleDateModeSelect = (mode: 'today' | 'yesterday' | 'custom') => {
-    setDateMode(mode);
-    if (mode === 'today') {
-      setSelectedDate(getTodayStr());
-    } else if (mode === 'yesterday') {
-      setSelectedDate(getYesterdayStr());
-    }
-  };
-
-  const loadStats = async () => {
+  // Fetch all dashboard data for selected date
+  const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await dashboardApi.getStats(
-        selectedCenterId !== 'all' ? selectedCenterId : undefined,
-        selectedDate
+      // 1. Fetch Customers
+      const custRes = await customerApi.getAll({ status: 'active' });
+      const activeCusts = custRes.customers;
+      setCustomers(activeCusts);
+
+      // 2. Fetch Morning & Evening Deliveries in parallel
+      const [mRes, eRes, salesRes, payRes] = await Promise.all([
+        deliveryApi.getDeliveries(selectedDate, 'morning').catch(() => ({ deliveries: [] })),
+        deliveryApi.getDeliveries(selectedDate, 'evening').catch(() => ({ deliveries: [] })),
+        salesApi.getDayWiseSales(selectedDate).catch(() => ({ sales: [] })),
+        paymentApi.getPayments({ date: selectedDate }).catch(() => ({ payments: [] })),
+      ]);
+
+      setMorningDeliveries(mRes.deliveries);
+      setEveningDeliveries(eRes.deliveries);
+      setDayWiseSales(salesRes.sales);
+      setPayments(payRes.payments);
+
+      // 3. Fetch advances for customer pool
+      const advMap: Record<string, CustomerAdvanceInfo> = {};
+      await Promise.all(
+        activeCusts.map(async (c) => {
+          try {
+            const adv = await paymentApi.getCustomerAdvance(c.id);
+            advMap[c.id] = adv;
+          } catch (e) {
+            // ignore
+          }
+        })
       );
-      setData(res);
-    } catch (err) {
-      console.warn('Dashboard stats fallback', err);
+      setCustomerAdvances(advMap);
+    } catch (err: any) {
+      console.error('Failed to load dashboard metrics:', err);
+      showToast('Failed to load dashboard metrics', 'error');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedDate, showToast]);
 
   useEffect(() => {
-    loadStats();
-  }, [selectedCenterId, selectedDate]);
+    loadDashboardData();
+  }, [loadDashboardData]);
 
-  const handleCenterClick = (centerId: string) => {
-    setSelectedCenterId(centerId);
-  };
+  // Aggregated KPI Calculations
+  const morningLitres = useMemo(() => {
+    return morningDeliveries.reduce((sum, d) => sum + (Number(d.actual_qty) || 0), 0);
+  }, [morningDeliveries]);
 
-  // Safe KPI access
-  const totalMilk = data.kpis.today_milk || 0;
-  const morningMilk = data.kpis.morning_milk ?? data.morning_vs_evening.morning ?? 0;
-  const eveningMilk = data.kpis.evening_milk ?? data.morning_vs_evening.evening ?? 0;
-  const todaySales = data.kpis.today_sales ?? data.kpis.today_amount ?? 0;
-  const todayPaid = data.kpis.today_paid ?? 0;
-  const todayDue = data.kpis.today_due ?? data.kpis.pending_payments ?? 0;
-  const activeSuppliers = data.kpis.total_suppliers || data.kpis.total_registered_suppliers || 0;
-  const collectionCenters = data.kpis.total_centers || (centers.length > 0 ? centers.length : 1);
+  const eveningLitres = useMemo(() => {
+    return eveningDeliveries.reduce((sum, d) => sum + (Number(d.actual_qty) || 0), 0);
+  }, [eveningDeliveries]);
+
+  const totalLitresToday = useMemo(() => {
+    return Math.round((morningLitres + eveningLitres) * 100) / 100;
+  }, [morningLitres, eveningLitres]);
+
+  const totalSalesToday = useMemo(() => {
+    return dayWiseSales.reduce((sum, s) => sum + (Number(s.sale_amount) || 0), 0);
+  }, [dayWiseSales]);
+
+  const totalAdvanceUsedToday = useMemo(() => {
+    return dayWiseSales.reduce((sum, s) => sum + (Number(s.advance_used) || 0), 0);
+  }, [dayWiseSales]);
+
+  const totalPaidToday = useMemo(() => {
+    return payments
+      .filter((p) => p.payment_type === 'daily')
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  }, [payments]);
+
+  const totalAdvanceReceivedToday = useMemo(() => {
+    return payments
+      .filter((p) => p.payment_type === 'advance')
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  }, [payments]);
+
+  const totalDueToday = useMemo(() => {
+    return dayWiseSales.reduce((sum, s) => sum + (Number(s.due) || 0), 0);
+  }, [dayWiseSales]);
+
+  const totalAdvanceBalancePool = useMemo(() => {
+    return Object.values(customerAdvances).reduce(
+      (sum, a) => sum + (Number(a.advance_balance) || 0),
+      0
+    );
+  }, [customerAdvances]);
+
+  // Session Stats
+  const morningDeliveredCount = useMemo(() => {
+    return morningDeliveries.filter((d) => d.status === 'delivered' && d.actual_qty > 0).length;
+  }, [morningDeliveries]);
+
+  const morningNoMilkCount = useMemo(() => {
+    return morningDeliveries.filter((d) => d.status === 'no_milk' || d.actual_qty === 0).length;
+  }, [morningDeliveries]);
+
+  const eveningDeliveredCount = useMemo(() => {
+    return eveningDeliveries.filter((d) => d.status === 'delivered' && d.actual_qty > 0).length;
+  }, [eveningDeliveries]);
+
+  const eveningNoMilkCount = useMemo(() => {
+    return eveningDeliveries.filter((d) => d.status === 'no_milk' || d.actual_qty === 0).length;
+  }, [eveningDeliveries]);
 
   return (
     <div className="space-y-6">
-      {/* Header & Date Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              Operational Dashboard
+      {/* Top Welcome & Operational Status Header */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-6 sm:p-8 border border-slate-800 shadow-xl">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Phase 6 Operations Dashboard</span>
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-semibold">
+                <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
+                <span>Owner: {user?.email}</span>
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+              Daily Milk Business Operations
             </h1>
-            <span className="text-[11px] font-semibold bg-brand-50 text-brand-900 border border-brand-200 px-2 py-0.5 rounded-full">
-              Live Database
-            </span>
+            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
+              Real-time monitoring of daily deliveries, automatic sales calculations, advance adjustments, and payment collections.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Real-time dairy metrics, intake sessions, financial settlements & center distribution.
-          </p>
-        </div>
 
-        {/* Date Filter & Actions */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Quick Filter Buttons: Today, Yesterday, Custom */}
-          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+          {/* Quick Date Selector & Refresh */}
+          <div className="flex flex-wrap items-center gap-2 bg-slate-800/80 p-2 rounded-2xl border border-slate-700/80 backdrop-blur-md">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-slate-700">
+              <Calendar className="w-4 h-4 text-emerald-400" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent text-xs font-bold text-white focus:outline-none"
+              />
+            </div>
             <button
               type="button"
-              onClick={() => handleDateModeSelect('today')}
-              className={`px-3 py-1.5 rounded-md transition-all ${
-                dateMode === 'today'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+              onClick={() => setSelectedDate(todayStr)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                selectedDate === todayStr
+                  ? 'bg-emerald-500 text-slate-950 shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700'
               }`}
             >
               Today
             </button>
             <button
               type="button"
-              onClick={() => handleDateModeSelect('yesterday')}
-              className={`px-3 py-1.5 rounded-md transition-all ${
-                dateMode === 'yesterday'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              onClick={loadDashboardData}
+              disabled={isLoading}
+              title="Refresh dashboard metrics"
+              className="p-2 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-200 transition"
             >
-              Yesterday
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDateModeSelect('custom')}
-              className={`px-3 py-1.5 rounded-md transition-all ${
-                dateMode === 'custom'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Custom Date
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
           </div>
+        </div>
 
-          {/* Date Picker Input */}
-          <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                setDateMode('custom');
-                setSelectedDate(e.target.value);
-              }}
-              className="border-none bg-transparent font-medium text-slate-800 text-xs focus:outline-hidden"
-            />
-          </div>
+        {/* Ambient background decoration */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadStats}
-            isLoading={isLoading}
-            icon={<RefreshCw className="w-3.5 h-3.5" />}
+      {/* CRM Workflow Stepper Strip */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center justify-between">
+          <span>CRM Workflow Pipeline (PDF Specification)</span>
+          <span className="text-emerald-600 font-semibold lowercase">automated backend execution</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate('customers')}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 hover:border-emerald-300 text-left transition group"
           >
-            Refresh
-          </Button>
+            <div className="text-[10px] font-bold text-slate-400 group-hover:text-emerald-700">Step 1</div>
+            <div className="font-bold text-xs text-slate-900 group-hover:text-emerald-900 flex items-center justify-between mt-0.5">
+              <span>Customers</span>
+              <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-emerald-600 transition group-hover:translate-x-0.5" />
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">{customers.length} Active</div>
+          </button>
 
-          <Button
-            variant="primary"
-            size="sm"
+          <button
+            type="button"
             onClick={() => onNavigate('deliveries-morning')}
-            icon={<Plus className="w-3.5 h-3.5" />}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-amber-50/50 border border-slate-200/80 hover:border-amber-300 text-left transition group"
           >
-            Record Intake
-          </Button>
+            <div className="text-[10px] font-bold text-slate-400 group-hover:text-amber-700">Step 2</div>
+            <div className="font-bold text-xs text-slate-900 group-hover:text-amber-900 flex items-center justify-between mt-0.5">
+              <span>Morning</span>
+              <Sun className="w-3 h-3 text-amber-500" />
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">{morningLitres.toFixed(1)} Litres</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('deliveries-evening')}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-indigo-50/50 border border-slate-200/80 hover:border-indigo-300 text-left transition group"
+          >
+            <div className="text-[10px] font-bold text-slate-400 group-hover:text-indigo-700">Step 3</div>
+            <div className="font-bold text-xs text-slate-900 group-hover:text-indigo-900 flex items-center justify-between mt-0.5">
+              <span>Evening</span>
+              <Moon className="w-3 h-3 text-indigo-500" />
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">{eveningLitres.toFixed(1)} Litres</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('sales')}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-teal-50/50 border border-slate-200/80 hover:border-teal-300 text-left transition group"
+          >
+            <div className="text-[10px] font-bold text-slate-400 group-hover:text-teal-700">Step 4</div>
+            <div className="font-bold text-xs text-slate-900 group-hover:text-teal-900 flex items-center justify-between mt-0.5">
+              <span>Daily Sales</span>
+              <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-teal-600 transition group-hover:translate-x-0.5" />
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">₹{totalSalesToday.toFixed(0)} Total</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('payments')}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 hover:border-emerald-300 text-left transition group"
+          >
+            <div className="text-[10px] font-bold text-slate-400 group-hover:text-emerald-700">Step 5</div>
+            <div className="font-bold text-xs text-slate-900 group-hover:text-emerald-900 flex items-center justify-between mt-0.5">
+              <span>Payments</span>
+              <CreditCard className="w-3 h-3 text-emerald-500" />
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">₹{totalPaidToday.toFixed(0)} Paid</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('customers')}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-purple-50/50 border border-slate-200/80 hover:border-purple-300 text-left transition group"
+          >
+            <div className="text-[10px] font-bold text-slate-400 group-hover:text-purple-700">Step 6</div>
+            <div className="font-bold text-xs text-slate-900 group-hover:text-purple-900 flex items-center justify-between mt-0.5">
+              <span>Customer History</span>
+              <History className="w-3 h-3 text-purple-500" />
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">Ledger & Summary</div>
+          </button>
         </div>
       </div>
 
-      {/* 8 Core Business KPIs Grid (Phase 6 Requirement) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        {/* 1. Total Milk */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-            <span>Total Milk</span>
-            <Milk className="w-3.5 h-3.5 text-brand-900" />
+      {/* 5 High-Impact Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Card 1: Milk Volume */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Total Milk Delivered</span>
+            <span className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+              <Milk className="w-4 h-4" />
+            </span>
           </div>
-          <div className="mt-2">
-            <div className="text-lg font-black text-slate-900 font-mono tabular-nums leading-tight">
-              {formatLitres(totalMilk)}
-            </div>
-            <span className="text-[10px] text-slate-400">Consolidated</span>
-          </div>
-        </div>
-
-        {/* 2. Morning Milk */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between text-amber-700 text-[10px] font-bold uppercase tracking-wider">
-            <span>Morning</span>
-            <Sun className="w-3.5 h-3.5 text-amber-500" />
-          </div>
-          <div className="mt-2">
-            <div className="text-lg font-black text-amber-950 font-mono tabular-nums leading-tight">
-              {formatLitres(morningMilk)}
-            </div>
-            <span className="text-[10px] text-amber-600/70">Session 1</span>
-          </div>
-        </div>
-
-        {/* 3. Evening Milk */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between text-indigo-700 text-[10px] font-bold uppercase tracking-wider">
-            <span>Evening</span>
-            <Moon className="w-3.5 h-3.5 text-indigo-500" />
-          </div>
-          <div className="mt-2">
-            <div className="text-lg font-black text-indigo-950 font-mono tabular-nums leading-tight">
-              {formatLitres(eveningMilk)}
-            </div>
-            <span className="text-[10px] text-indigo-600/70">Session 2</span>
-          </div>
-        </div>
-
-        {/* 4. Today's Sales */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
-            <span>Sales Value</span>
-            <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
-          </div>
-          <div className="mt-2">
-            <div className="text-lg font-black text-emerald-950 font-mono tabular-nums leading-tight">
-              {formatCurrency(todaySales)}
-            </div>
-            <span className="text-[10px] text-emerald-600/70">Gross delivery</span>
-          </div>
-        </div>
-
-        {/* 5. Today's Paid */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between text-blue-700 text-[10px] font-bold uppercase tracking-wider">
-            <span>Paid</span>
-            <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-          </div>
-          <div className="mt-2">
-            <div className="text-lg font-black text-blue-950 font-mono tabular-nums leading-tight">
-              {formatCurrency(todayPaid)}
-            </div>
-            <span className="text-[10px] text-blue-600/70">Disbursed</span>
-          </div>
-        </div>
-
-        {/* 6. Today's Due */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between text-rose-700 text-[10px] font-bold uppercase tracking-wider">
-            <span>Due</span>
-            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-          </div>
-          <div className="mt-2">
-            <div className="text-lg font-black text-rose-950 font-mono tabular-nums leading-tight">
-              {formatCurrency(todayDue)}
-            </div>
-            <span className="text-[10px] text-rose-600/70">Unsettled</span>
-          </div>
-        </div>
-
-        {/* 7. Active Suppliers */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-            <span>Suppliers</span>
-            <Users className="w-3.5 h-3.5 text-slate-600" />
-          </div>
-          <div className="mt-2">
-            <div className="text-lg font-black text-slate-900 font-mono tabular-nums leading-tight">
-              {activeSuppliers}
-            </div>
-            <span className="text-[10px] text-slate-400">Active accounts</span>
-          </div>
-        </div>
-
-        {/* 8. Collection Centers */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-subtle hover:border-slate-300 transition-all flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-            <span>Centers</span>
-            <Building2 className="w-3.5 h-3.5 text-slate-600" />
-          </div>
-          <div className="mt-2">
-            <div className="text-lg font-black text-slate-900 font-mono tabular-nums leading-tight">
-              {collectionCenters}
-            </div>
-            <span className="text-[10px] text-slate-400">Hub stations</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Center-wise Milk Collection Section */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-subtle">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-4">
           <div>
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-brand-900" />
-              Center-wise Collection & Financial Breakdown ({selectedDate})
-            </h2>
-            <p className="text-[11px] text-slate-500">
-              Live intake volume, gross sales value, disbursements, and dues per hub station.
+            <div className="text-2xl font-black text-slate-900 tracking-tight">
+              {totalLitresToday.toFixed(2)} <span className="text-sm font-semibold text-slate-500">L</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Morning: {morningLitres.toFixed(1)}L • Evening: {eveningLitres.toFixed(1)}L
             </p>
+          </div>
+        </div>
+
+        {/* Card 2: Total Sales */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Total Daily Sale</span>
+            <span className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+              <IndianRupee className="w-4 h-4" />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-indigo-700 tracking-tight font-mono">
+              ₹{totalSalesToday.toFixed(2)}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Calculated by Litres × Milk Rate
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Cash & UPI Paid Today */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Cash / Paid Today</span>
+            <span className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+              <CreditCard className="w-4 h-4" />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-emerald-600 tracking-tight font-mono">
+              ₹{totalPaidToday.toFixed(2)}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Advance Used: ₹{totalAdvanceUsedToday.toFixed(2)}
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: Outstanding Due */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Pending Due Today</span>
+            <span className="p-2 rounded-xl bg-rose-50 text-rose-600">
+              <TrendingDown className="w-4 h-4" />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-rose-600 tracking-tight font-mono">
+              ₹{totalDueToday.toFixed(2)}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              After advance & daily payment
+            </p>
+          </div>
+        </div>
+
+        {/* Card 5: Advance Balance Pool */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Advance Pool</span>
+            <span className="p-2 rounded-xl bg-amber-50 text-amber-600">
+              <Wallet className="w-4 h-4" />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-amber-600 tracking-tight font-mono">
+              ₹{totalAdvanceBalancePool.toFixed(2)}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Held across all active customers
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Two Delivery Session Cards (Morning & Evening) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Morning Session Card */}
+        <div className="bg-white rounded-2xl border border-amber-200/80 shadow-sm p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-200">
+                  <Sun className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Morning Delivery Session</h3>
+                  <p className="text-xs text-slate-500">{selectedDate}</p>
+                </div>
+              </div>
+              <span className="text-xs font-black font-mono text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                {morningLitres.toFixed(2)} Litres
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 my-4 bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Active Custs</span>
+                <div className="text-base font-bold text-slate-800">{customers.length}</div>
+              </div>
+              <div>
+                <span className="text-[10px] text-emerald-600 font-bold uppercase">Delivered</span>
+                <div className="text-base font-bold text-emerald-700">{morningDeliveredCount}</div>
+              </div>
+              <div>
+                <span className="text-[10px] text-rose-600 font-bold uppercase">No Milk (0L)</span>
+                <div className="text-base font-bold text-rose-700">{morningNoMilkCount}</div>
+              </div>
+            </div>
           </div>
 
           <button
             type="button"
-            onClick={() => onNavigate('centers')}
-            className="text-xs text-brand-900 font-semibold hover:underline flex items-center gap-1"
+            onClick={() => onNavigate('deliveries-morning')}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-xs shadow-md shadow-amber-500/20 transition active:scale-98"
           >
-            Manage Centers <ArrowRight className="w-3.5 h-3.5" />
+            <span>Open Morning Delivery Sheet</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Center Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {(data.center_breakdown || []).length === 0 ? (
-            <div className="col-span-full py-8 text-center text-xs text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-              No collection recorded for this date.
-            </div>
-          ) : (
-            (data.center_breakdown || []).map((ctr) => {
-              const isSelected = selectedCenterId === ctr.center_id;
-              return (
-                <div
-                  key={ctr.center_id}
-                  onClick={() => handleCenterClick(ctr.center_id)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'border-brand-800 bg-brand-50/30 ring-1 ring-brand-800 shadow-xs'
-                      : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-slate-900 text-xs truncate">
-                      {ctr.center_name}
-                    </span>
-                    <span className="font-mono text-[10px] font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">
-                      {ctr.registered_suppliers} suppliers
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-200/70 text-center">
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Morning</span>
-                      <span className="text-xs font-bold text-slate-800 font-mono">{ctr.morning_milk}L</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Evening</span>
-                      <span className="text-xs font-bold text-slate-800 font-mono">{ctr.evening_milk}L</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Milk</span>
-                      <span className="text-xs font-black text-brand-900 font-mono">{ctr.today_total}L</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">
-                      Sales: <strong className="text-slate-800">₹{ctr.today_sales ?? ctr.today_amount ?? 0}</strong>
-                    </span>
-                    <span className="text-slate-500">
-                      Due: <strong className="text-rose-700">₹{ctr.today_due ?? (ctr as any).pending_payments ?? 0}</strong>
-                    </span>
-                  </div>
+        {/* Evening Session Card */}
+        <div className="bg-white rounded-2xl border border-indigo-200/80 shadow-sm p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200">
+                  <Moon className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Evening Delivery Session</h3>
+                  <p className="text-xs text-slate-500">{selectedDate}</p>
                 </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* Analytics Row: 7-Day Collection Trend */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-subtle">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-          <div>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              7-Day Milk Collection Trend
-            </h2>
-            <span className="text-[11px] text-slate-500">Morning and Evening intake trajectory in Litres</span>
-          </div>
-          <span className="text-xs text-brand-800 font-medium bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
-            Database Aggregation
-          </span>
-        </div>
-
-        <div className="h-52 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.weekly_collection} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '6px', fontSize: '11px' }}
-                formatter={(val: any) => [`${val} L`, '']}
-              />
-              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-              <Bar dataKey="morning" name="Morning (L)" fill="#f59e0b" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="evening" name="Evening (L)" fill="#4338ca" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Activity Tables Section: Recent Deliveries, Recent Payments & Pending Balances */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* 1. Recent Deliveries (5 cols) */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl shadow-subtle overflow-hidden flex flex-col justify-between">
-          <div>
-            <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Recent Deliveries
-                </h3>
-                <p className="text-[11px] text-slate-500">Latest recorded milk intake</p>
               </div>
-              <button
-                type="button"
-                onClick={() => onNavigate('deliveries-morning')}
-                className="text-xs text-brand-900 hover:underline font-semibold flex items-center gap-1"
-              >
-                View all <ArrowRight className="w-3 h-3" />
-              </button>
+              <span className="text-xs font-black font-mono text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200">
+                {eveningLitres.toFixed(2)} Litres
+              </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700">
-                <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[10px] border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-2.5">Supplier</th>
-                    <th className="px-2 py-2.5">Session</th>
-                    <th className="px-2 py-2.5 text-right">Qty</th>
-                    <th className="px-3 py-2.5 text-right">Amount</th>
-                    <th className="px-3 py-2.5 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {(!data.recent_deliveries || data.recent_deliveries.length === 0) ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-6 text-center text-xs text-slate-400">
-                        No deliveries recorded recently.
+            <div className="grid grid-cols-3 gap-2 my-4 bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Active Custs</span>
+                <div className="text-base font-bold text-slate-800">{customers.length}</div>
+              </div>
+              <div>
+                <span className="text-[10px] text-indigo-600 font-bold uppercase">Delivered</span>
+                <div className="text-base font-bold text-indigo-700">{eveningDeliveredCount}</div>
+              </div>
+              <div>
+                <span className="text-[10px] text-rose-600 font-bold uppercase">No Milk (0L)</span>
+                <div className="text-base font-bold text-rose-700">{eveningNoMilkCount}</div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('deliveries-evening')}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition active:scale-98"
+          >
+            <span>Open Evening Delivery Sheet</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Day-Wise Sales Live Preview Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <IndianRupee className="w-4 h-4 text-emerald-600" />
+              <span>Day-Wise Sales & Collection Breakdown for {selectedDate}</span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              Morning + Evening = Total Litres × Milk Rate = Daily Sale. Advance Used and Due automatically adjusted.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigate('sales')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs transition"
+            >
+              <span>View Full Sales Sheet</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('payments')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 font-bold text-xs transition shadow-sm"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Payments Desk</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50/80 text-slate-600 border-b border-slate-200 font-bold uppercase tracking-wider text-[10px]">
+              <tr>
+                <th className="py-3 px-4">Customer</th>
+                <th className="py-3 px-4">Area</th>
+                <th className="py-3 px-4 text-center">Morning</th>
+                <th className="py-3 px-4 text-center">Evening</th>
+                <th className="py-3 px-4 text-center">Total Milk</th>
+                <th className="py-3 px-4 text-right">Rate</th>
+                <th className="py-3 px-4 text-right">Daily Sale</th>
+                <th className="py-3 px-4 text-right">Advance Used</th>
+                <th className="py-3 px-4 text-right">Paid</th>
+                <th className="py-3 px-4 text-right">Due</th>
+                <th className="py-3 px-4 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={11} className="py-8 text-center text-slate-400">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-600" />
+                    Calculating today's live sales...
+                  </td>
+                </tr>
+              ) : dayWiseSales.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="py-8 text-center text-slate-400">
+                    No delivery records saved for {selectedDate} yet. Use Morning or Evening delivery to enter milk quantities.
+                  </td>
+                </tr>
+              ) : (
+                dayWiseSales.map((s) => {
+                  const isPaid = s.due <= 0 && s.sale_amount > 0;
+                  const isPartial = s.paid > 0 && s.due > 0;
+
+                  return (
+                    <tr key={s.customer_id} className="hover:bg-slate-50/60 transition">
+                      <td className="py-3 px-4 font-bold text-slate-900">{s.customer_name}</td>
+                      <td className="py-3 px-4 text-slate-600">{s.customer_area}</td>
+                      <td className="py-3 px-4 text-center text-amber-700 font-semibold">
+                        {Number(s.morning_qty).toFixed(1)}L
+                      </td>
+                      <td className="py-3 px-4 text-center text-indigo-700 font-semibold">
+                        {Number(s.evening_qty).toFixed(1)}L
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold text-slate-900">
+                        {Number(s.total_litres).toFixed(2)}L
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-slate-600">
+                        ₹{Number(s.rate).toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                        ₹{Number(s.sale_amount).toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-indigo-700 font-semibold">
+                        ₹{Number(s.advance_used).toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-emerald-700 font-semibold">
+                        ₹{Number(s.paid).toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-black">
+                        <span className={s.due > 0 ? 'text-rose-600' : 'text-slate-400'}>
+                          ₹{Number(s.due).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {isPaid && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3" /> Paid
+                          </span>
+                        )}
+                        {isPartial && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3" /> Partial
+                          </span>
+                        )}
+                        {!isPaid && !isPartial && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                            <AlertCircle className="w-3 h-3" /> Due
+                          </span>
+                        )}
                       </td>
                     </tr>
-                  ) : (
-                    data.recent_deliveries.slice(0, 7).map((del) => (
-                      <tr key={del.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-2.5">
-                          <div className="font-semibold text-slate-900">{del.customer_name}</div>
-                          <span className="text-[10px] font-mono text-slate-400">{del.customer_code}</span>
-                        </td>
-                        <td className="px-2 py-2.5">
-                          <Badge variant={del.session === 'MORNING' ? 'morning' : 'evening'} size="sm">
-                            {del.session === 'MORNING' ? 'Morn' : 'Eve'}
-                          </Badge>
-                        </td>
-                        <td className="px-2 py-2.5 text-right font-bold text-slate-900 font-mono">
-                          {del.actual_qty}L
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-bold text-emerald-800 font-mono">
-                          ₹{del.total_amount?.toFixed(2) || '0.00'}
-                        </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                              del.status === 'DELIVERED'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}
-                          >
-                            {del.status === 'DELIVERED' ? 'Delivered' : 'No Milk'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* 2. Recent Payments (4 cols) */}
-        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl shadow-subtle overflow-hidden flex flex-col justify-between">
-          <div>
-            <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Recent Payments
-                </h3>
-                <p className="text-[11px] text-slate-500">Disbursements & advances</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigate('payments')}
-                className="text-xs text-brand-900 hover:underline font-semibold flex items-center gap-1"
-              >
-                View all <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div className="divide-y divide-slate-100">
-              {(!data.recent_payments || data.recent_payments.length === 0) ? (
-                <div className="p-6 text-center text-xs text-slate-400">
-                  No payments recorded recently.
-                </div>
-              ) : (
-                data.recent_payments.slice(0, 7).map((pay) => (
-                  <div key={pay.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors text-xs">
-                    <div>
-                      <div className="font-semibold text-slate-900">{pay.customer_name}</div>
-                      <div className="text-[10px] text-slate-400">
-                        {pay.payment_type === 'ADVANCE' ? 'Advance Credit' : 'Daily Settlement'} • {pay.payment_mode}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-slate-900 font-mono text-sm">
-                        {formatCurrency(pay.amount)}
-                      </div>
-                      <span className="text-[10px] text-slate-400">{pay.date}</span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Pending Balances (3 cols) */}
-        <div className="lg:col-span-3 bg-white border border-slate-200 rounded-xl shadow-subtle overflow-hidden flex flex-col justify-between">
-          <div>
-            <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Pending Balances
-                </h3>
-                <p className="text-[11px] text-slate-500">Unsettled amounts</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigate('payments')}
-                className="text-xs text-brand-900 hover:underline font-semibold flex items-center gap-1"
-              >
-                Pay <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div className="divide-y divide-slate-100">
-              {(!data.pending_balances || data.pending_balances.length === 0) ? (
-                <div className="p-6 text-center text-xs text-emerald-700 bg-emerald-50/30">
-                  <CheckCircle2 className="w-4 h-4 mx-auto mb-1 text-emerald-600" />
-                  All accounts settled for this date!
-                </div>
-              ) : (
-                data.pending_balances.slice(0, 7).map((p) => (
-                  <div key={p.customer_id} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors text-xs">
-                    <div>
-                      <div className="font-semibold text-slate-900">{p.customer_name}</div>
-                      <div className="text-[10px] text-slate-400">{p.customer_code} • {p.center_name}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-rose-700 font-mono text-xs">
-                        {formatCurrency(p.due)}
-                      </div>
-                      <span className="text-[10px] text-slate-400">Sale: ₹{p.sale}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

@@ -1,161 +1,219 @@
-export type UserRole = 'admin' | 'staff';
+/**
+ * Milk Business CRM - Frontend Core Types
+ * Strictly adhering to PDF Blueprint (React + Node.js + TiDB)
+ * Phase 1: Foundation, TiDB Users Table & Owner Authentication
+ * Rule: Customer has NO LOGIN • Owner is the primary system user
+ */
 
 export interface User {
   id: string;
-  name: string;
-  mobile: string;
   email: string;
-  role: UserRole;
-  collection_center_id: string;
-  collection_center_name?: string;
+  role: 'owner';
   status: 'active' | 'inactive';
-  password?: string;
-  last_login?: string;
-}
-
-export type SupplierType = 'REGISTERED' | 'DIRECT';
-export type PaymentStatus = 'PAID' | 'PENDING';
-
-export interface CollectionCenter {
-  id: string;
-  center_name?: string;
-  name?: string; // alias for center_name
-  location: string;
-  code?: string;
-  phone?: string;
-  status?: 'active' | 'inactive';
-  is_active?: boolean;
-  supplier_count?: number;
-  today_morning_milk?: number;
-  today_evening_milk?: number;
-  today_total_milk?: number;
-  today_amount?: number;
-  monthly_total_milk?: number;
-  monthly_amount?: number;
-  pending_amount?: number;
-  direct_suppliers_today?: number;
-  today_milk?: number;
-  total_collections_amount?: number;
-  total_paid?: number;
-  created_at: string;
+  created_at?: string;
   updated_at?: string;
 }
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+export interface DBStatus {
+  connected: boolean;
+  type: 'tidb' | 'local_fallback';
+  host: string;
+  port: number;
+  database: string;
+  usersTableExists: boolean;
+  usersCount: number;
+  lastChecked: string;
+  error?: string;
+}
+
+export interface HealthResponse {
+  status: string;
+  service: string;
+  version: string;
+  phase: string;
+  architecture: string;
+  timestamp: string;
+  uptime: number;
+}
+
+/**
+ * Phase 2: Customer Types
+ * Strict fields: id, name, phone, address, area, default_morning_qty, default_evening_qty, rate, start_date, status
+ */
+export type CustomerStatus = 'active' | 'inactive';
 
 export interface Customer {
   id: string;
-  customer_code: string; // e.g. SUP001
   name: string;
   phone: string;
-  mobile?: string; // alias for phone
-  address?: string;
+  address: string;
   area: string;
-  village?: string; // alias for area
-  center_id: string;
-  collection_center_id?: string; // alias for center_id
-  center_name?: string;
-  cow_count: number;
-  buffalo_count: number;
   default_morning_qty: number;
   default_evening_qty: number;
-  default_session?: 'morning' | 'evening' | 'both';
   rate: number;
   start_date: string;
-  status: 'active' | 'inactive';
-  notes?: string;
-  total_milk?: number;
-  total_amount?: number;
-  total_paid?: number;
-  pending_amount?: number;
-  created_at: string;
+  status: CustomerStatus;
+  created_at?: string;
   updated_at?: string;
 }
 
-export type PricingType = 'fixed' | 'fat_snf';
-
-export interface MilkRate {
-  id: string;
-  pricing_type: PricingType;
-  base_rate: number;
-  standard_fat: number;
-  standard_snf: number;
-  fat_rate: number;
-  snf_rate: number;
-  effective_date: string;
-  updated_by: string;
-  is_active: boolean;
-  notes?: string;
+export interface CreateCustomerDTO {
+  name: string;
+  phone: string;
+  address: string;
+  area: string;
+  default_morning_qty: number;
+  default_evening_qty: number;
+  rate: number;
+  start_date: string;
+  status?: CustomerStatus;
 }
 
-export type DeliverySession = 'MORNING' | 'EVENING';
-export type DeliveryStatus = 'DELIVERED' | 'NO_MILK';
+export interface UpdateCustomerDTO {
+  name?: string;
+  phone?: string;
+  address?: string;
+  area?: string;
+  default_morning_qty?: number;
+  default_evening_qty?: number;
+  rate?: number;
+  start_date?: string;
+  status?: CustomerStatus;
+}
 
-export interface Delivery {
-  id: string;
+export interface CustomerFilter {
+  search?: string;
+  status?: 'all' | 'active' | 'inactive';
+}
+
+/**
+ * Phase 3: Delivery Workflow Types (Morning & Evening)
+ * Strict fields: id, customer_id, date, session, actual_qty, status
+ */
+export type DeliverySession = 'morning' | 'evening';
+export type DeliveryStatus = 'delivered' | 'no_milk';
+
+export interface DeliveryItem {
+  id?: string;
   customer_id: string;
-  center_id: string;
-  date: string; // YYYY-MM-DD
+  customer_name: string;
+  customer_phone: string;
+  customer_area: string;
+  customer_address: string;
+  date: string;
   session: DeliverySession;
+  default_qty: number;
   actual_qty: number;
   status: DeliveryStatus;
-  created_at: string;
+  is_saved: boolean;
+  rate: number;
+  created_at?: string;
   updated_at?: string;
-  // Presentation fields for daily entry table
-  customer_name?: string;
-  customer_code?: string;
-  phone?: string;
-  center_name?: string;
-  default_qty?: number;
-  rate?: number;
-  total_amount?: number;
-  is_saved?: boolean;
 }
 
-export interface MilkCollection {
-  id: string;
-  customer_id?: string | null;
-  supplier_id?: string | null;
-  supplier_type: SupplierType;
-  walk_in_name?: string | null;
-  walk_in_mobile?: string | null;
-  customer_name?: string;
-  customer_code?: string;
-  customer_mobile?: string;
-  village?: string;
-  collection_center_id: string;
-  center_name?: string;
+export interface DeliveriesResponse {
+  deliveries: DeliveryItem[];
+  total: number;
   date: string;
-  session: 'morning' | 'evening';
-  animal_type: 'cow' | 'buffalo';
-  quantity: number;
-  fat_percentage: number;
-  snf_percentage: number;
-  calculated_rate: number;
-  total_amount: number;
-  payment_status: PaymentStatus;
-  status: 'collected' | 'verified' | 'cancelled';
-  collected_by: string;
-  notes?: string;
-  created_at: string;
+  session: DeliverySession;
+  summary: {
+    total_qty: number;
+    delivered_count: number;
+    no_milk_count: number;
+  };
 }
 
-export type PaymentType = 'DAILY_PAYMENT' | 'ADVANCE';
-export type PaymentMode = 'CASH' | 'UPI' | 'BANK_TRANSFER';
-export type AdvanceLedgerType = 'ADVANCE_ADDED' | 'ADVANCE_USED';
+export interface SaveDeliveryPayload {
+  customer_id: string;
+  date: string;
+  session: string;
+  actual_qty: number;
+  status: string;
+}
 
-export interface PaymentRecord {
+/**
+ * Phase 4: Automatic Sales Calculation Types
+ * Strict fields: id, customer_id, date, morning_qty, evening_qty, total_litres, rate, sale_amount
+ * Day-wise sales columns: Date, Customer, Morning, Evening, Total, Rate, Sale, Advance Used, Paid, Due
+ */
+export interface Sale {
   id: string;
   customer_id: string;
+  date: string;
+  morning_qty: number;
+  evening_qty: number;
+  total_litres: number;
+  rate: number;
+  sale_amount: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DayWiseSaleItem {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_area: string;
+  date: string;
+  morning_qty: number;
+  evening_qty: number;
+  total_litres: number;
+  rate: number;
+  sale_amount: number;
+  advance_used: number;
+  paid: number;
+  due: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SalesSummary {
+  total_morning_litres: number;
+  total_evening_litres: number;
+  total_litres: number;
+  total_sales_amount: number;
+  total_advance_used: number;
+  total_paid: number;
+  total_due: number;
+}
+
+export interface SalesResponse {
+  sales: DayWiseSaleItem[];
+  total: number;
+  date: string;
+  summary: SalesSummary;
+}
+
+/**
+ * Phase 5: Daily Payment & Advance Ledger Types
+ * Strict tables:
+ * - payments: id, customer_id, date, amount, payment_type, payment_mode
+ * - advance_ledger: id, customer_id, date, type, amount, reference_id
+ */
+export type PaymentType = 'daily' | 'advance';
+export type AdvanceLedgerType = 'credit' | 'adjustment';
+
+export interface Payment {
+  id: string;
+  customer_id: string;
+  customer_name?: string;
   date: string;
   amount: number;
   payment_type: PaymentType;
-  payment_mode: PaymentMode;
-  reference_id?: string;
-  notes?: string;
-  created_at: string;
-  customer_name?: string;
-  customer_code?: string;
-  center_id?: string;
-  center_name?: string;
+  payment_mode: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AdvanceLedgerEntry {
@@ -164,14 +222,34 @@ export interface AdvanceLedgerEntry {
   date: string;
   type: AdvanceLedgerType;
   amount: number;
-  reference_id?: string;
-  notes?: string;
-  created_at: string;
-  customer_name?: string;
-  customer_code?: string;
+  reference_id: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
-export interface CustomerHistoryEntry {
+export interface CreatePaymentDTO {
+  customer_id: string;
+  date: string;
+  amount: number;
+  payment_type: PaymentType;
+  payment_mode?: string;
+}
+
+export interface CustomerAdvanceInfo {
+  customer_id: string;
+  customer_name: string;
+  advance_balance: number;
+  total_advance_credited: number;
+  total_advance_used: number;
+  ledger: AdvanceLedgerEntry[];
+}
+
+/**
+ * Phase 6: Customer History & Monthly Summary
+ * History: Date, Morning, Evening, Total, Sale, Advance Used, Paid, Due
+ * Monthly Summary: Total Milk, Total Sales, Total Paid, Total Due, Advance Balance
+ */
+export interface CustomerHistoryItem {
   date: string;
   morning: number;
   evening: number;
@@ -184,6 +262,7 @@ export interface CustomerHistoryEntry {
 }
 
 export interface CustomerMonthlySummary {
+  month: string;
   total_milk: number;
   total_sales: number;
   total_paid: number;
@@ -192,131 +271,10 @@ export interface CustomerMonthlySummary {
 }
 
 export interface CustomerHistoryResponse {
-  customer: Customer | null;
-  history: CustomerHistoryEntry[];
+  customer: Customer;
+  items: CustomerHistoryItem[];
   monthly_summary: CustomerMonthlySummary;
 }
 
-export interface DailyPaymentSummary {
-  date: string;
-  customer_id: string;
-  customer_name: string;
-  customer_code: string;
-  center_id: string;
-  center_name: string;
-  phone?: string;
-  rate: number;
-  total_qty: number;
-  sale: number;
-  available_advance: number;
-  advance_used: number;
-  remaining_advance: number;
-  remaining_sale: number;
-  paid: number;
-  due: number;
-  status: 'PAID' | 'PARTIAL' | 'PENDING' | 'OVERPAID';
-}
 
-export interface Payment {
-  id: string;
-  customer_id: string;
-  customer_name?: string;
-  customer_code?: string;
-  customer_mobile?: string;
-  village?: string;
-  collection_center_id: string;
-  center_name?: string;
-  date: string;
-  amount: number;
-  payment_method: 'cash' | 'upi' | 'bank_transfer';
-  reference_no?: string;
-  status: 'completed' | 'pending' | 'failed';
-  notes?: string;
-  created_by: string;
-  created_at: string;
-}
 
-export interface Settlement {
-  id: string;
-  settlement_code: string;
-  customer_id: string;
-  customer_name?: string;
-  customer_code?: string;
-  customer_mobile?: string;
-  collection_center_id: string;
-  center_name?: string;
-  month_year: string;
-  from_date: string;
-  to_date: string;
-  total_milk: number;
-  total_amount: number;
-  previous_paid: number;
-  pending_amount: number;
-  settled_amount: number;
-  status: 'settled' | 'partial';
-  confirmed_at: string;
-  confirmed_by: string;
-}
-
-export interface LedgerEntry {
-  id: string;
-  customer_id: string;
-  date: string;
-  description: string;
-  milk_quantity?: number;
-  debit: number;
-  credit: number;
-  running_balance: number;
-  reference_type: 'collection' | 'payment' | 'settlement' | 'opening';
-  reference_id?: string;
-  created_at: string;
-}
-
-export type ExpenseCategory =
-  | 'transport'
-  | 'salary'
-  | 'maintenance'
-  | 'electricity'
-  | 'equipment'
-  | 'other';
-
-export interface Expense {
-  id: string;
-  collection_center_id: string;
-  center_name?: string;
-  date: string;
-  category: ExpenseCategory;
-  description: string;
-  amount: number;
-  payment_method: 'cash' | 'upi' | 'bank_transfer';
-  notes?: string;
-  added_by: string;
-  created_at: string;
-}
-
-export interface NotificationItem {
-  id: string;
-  title: string;
-  message: string;
-  type: 'payment' | 'settlement' | 'supplier' | 'rate' | 'collection' | 'system';
-  read: boolean;
-  timestamp: string;
-  target_user_id?: string;
-}
-
-export interface BusinessSettings {
-  business_name: string;
-  tagline: string;
-  brand_code: string;
-  phone: string;
-  email: string;
-  address: string;
-  district: string;
-  state: string;
-  default_pricing_mode: PricingType;
-  base_cow_rate: number;
-  base_buffalo_rate: number;
-  default_language: 'en' | 'ta';
-  whatsapp_enabled: boolean;
-  currency_symbol: string;
-}

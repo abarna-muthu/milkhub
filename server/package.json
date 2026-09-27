@@ -7,6 +7,13 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "test:db": "tsx src/test-tidb.ts",
+    "verify:phase1": "tsx src/verify-phase1.ts",
+    "verify:phase2": "tsx src/verify-phase2.ts",
+    "verify:phase3": "tsx src/verify-phase3.ts",
+    "verify:phase4": "tsx src/verify-phase4.ts",
+    "verify:phase5": "tsx src/verify-phase5.ts",
+    "verify:phase6": "tsx src/verify-phase6.ts",
+    "verify:phase7": "tsx src/verify-phase7.ts",
     "build": "tsc",
     "start": "node dist/server.js"
   },

@@ -1,29 +1,17 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { authMiddleware } from './middleware/auth.js';
 import { authRouter } from './routes/authRoutes.js';
 import { customerRouter } from './routes/customerRoutes.js';
-import { collectionRouter } from './routes/collectionRoutes.js';
-import { rateRouter } from './routes/rateRoutes.js';
-import { paymentRouter } from './routes/paymentRoutes.js';
-import { settlementRouter } from './routes/settlementRoutes.js';
-import { ledgerRouter } from './routes/ledgerRoutes.js';
-import { expenseRouter } from './routes/expenseRoutes.js';
-import { staffRouter } from './routes/staffRoutes.js';
-import { centerRouter } from './routes/centerRoutes.js';
-import { dashboardRouter } from './routes/dashboardRoutes.js';
-import { reportRouter } from './routes/reportRoutes.js';
-import { notificationRouter } from './routes/notificationRoutes.js';
-import { settingRouter } from './routes/settingRoutes.js';
 import { deliveryRouter } from './routes/deliveryRoutes.js';
-import { store } from './db/store.js';
+import { salesRouter } from './routes/salesRoutes.js';
+import { paymentRouter } from './routes/paymentRoutes.js';
 import { tidb } from './db/tidb.js';
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
 
 // Middleware
 app.use(cors({ origin: true, credentials: true }));
@@ -41,11 +29,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'MilkHub Milk CRM Backend (TiDB Powered)',
+    service: 'Milk Business CRM Backend (Phase 7 - Deployment Ready)',
+    version: '1.7.0',
+    phase: 'Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7: Owner Auth, Customer CRUD, Deliveries, Sales Calculation, Daily Payments, Advance Ledger, Customer History, Testing & Deployment-Readiness Active',
+    architecture: 'Customer has NO LOGIN • Owner is the primary system user',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
@@ -61,66 +52,55 @@ app.get('/api/db/status', async (req, res) => {
   }
 });
 
-// Reset data to clean state (dev/testing)
-app.post('/api/reset-data', (req, res) => {
-  const fresh = store.resetToFreshSeed();
-  res.json({
-    status: 'ok',
-    message: 'Store reset to clean seed',
-    customers_count: fresh.customers.length,
-    collections_count: fresh.milk_collections.length,
-    payments_count: fresh.payments.length,
-    expenses_count: fresh.expenses.length,
+// Mount Public & Protected Auth Routes (/api/auth/login, /api/auth/me, /api/auth/logout)
+app.use('/api/auth', authRouter);
+
+// Mount Phase 2 Customer Routes (/api/customers)
+app.use('/api/customers', customerRouter);
+
+// Mount Phase 3 Delivery Routes (/api/deliveries)
+app.use('/api/deliveries', deliveryRouter);
+
+// Mount Phase 4 Sales Routes (/api/sales)
+app.use('/api/sales', salesRouter);
+
+// Mount Phase 5 Payment Routes (/api/payments)
+app.use('/api/payments', paymentRouter);
+
+// Global 404 handler for undefined endpoints
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: 'Endpoint not found or not part of Milk CRM scope',
   });
 });
 
-// Mount Public Auth Routes (Login, Logout)
-app.use('/api/auth', authRouter);
 
-// Apply strict authMiddleware to all protected CRM business API routes
-app.use('/api', authMiddleware);
-app.use('/api/customers', customerRouter);
-app.use('/api/deliveries', deliveryRouter);
-app.use('/api/collections', collectionRouter);
-app.use('/api/rates', rateRouter);
-app.use('/api/payments', paymentRouter);
-app.use('/api/settlements', settlementRouter);
-app.use('/api/ledger', ledgerRouter);
-app.use('/api/expenses', expenseRouter);
-app.use('/api/staff', staffRouter);
-app.use('/api/centers', centerRouter);
-app.use('/api/dashboard', dashboardRouter);
-app.use('/api/reports', reportRouter);
-app.use('/api/notifications', notificationRouter);
-app.use('/api/settings', settingRouter);
 
 // Global error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled Server Error:', err);
   res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
+    error: err.message || 'Internal server error occurred',
   });
 });
 
-// Initialize database and start server
+// Start Server and Initialize TiDB Connection
 async function startServer() {
-  console.log('[Bootstrap] Initializing TiDB database connection & users table...');
-  const connected = await tidb.initDatabase();
-  if (connected) {
-    console.log('[Bootstrap] TiDB connected and schema initialized.');
-  } else {
-    console.log('[Bootstrap] Operating with local fallback while TiDB credentials are configured.');
-  }
+  console.log('--- Initializing Milk Business CRM Backend (Phase 1) ---');
+  await tidb.initDatabase();
 
-  app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`====================================================`);
-    console.log(`  MilkHub Milk Collection & Dairy CRM API           `);
-    console.log(`  Database: TiDB (Status: ${connected ? 'CONNECTED' : 'LOCAL FALLBACK'})`);
-    console.log(`  Running on http://0.0.0.0:${PORT}               `);
-    console.log(`====================================================`);
+  app.listen(PORT, () => {
+    console.log(`[MilkHub Server] Running on http://localhost:${PORT}`);
+    console.log(`[Auth API] POST http://localhost:${PORT}/api/auth/login`);
+    console.log(`[Health API] GET http://localhost:${PORT}/api/health`);
+    console.log(`[DB Status] GET http://localhost:${PORT}/api/db/status`);
+    console.log(`[Blueprint] Customer has NO LOGIN • Owner is the primary system user`);
   });
 }
 
 startServer().catch((err) => {
-  console.error('[Bootstrap Error] Failed to start server:', err);
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
+
+export { app };

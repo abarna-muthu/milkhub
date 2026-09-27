@@ -2,23 +2,19 @@ import React from 'react';
 import {
   LayoutDashboard,
   Users,
-  Milk,
-  CreditCard,
-  BookOpen,
-  DollarSign,
-  FileBarChart,
-  Receipt,
-  UserCog,
-  Building2,
-  Settings,
-  ShieldAlert,
-  Sparkles,
   Sun,
   Moon,
+  CreditCard,
+  Settings,
+  Database,
+  ShieldCheck,
+  LogOut,
+  Milk,
+  CheckCircle2,
+  AlertCircle,
+  Receipt,
 } from 'lucide-react';
-import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
-import { useCenter } from '../../context/CenterContext';
 
 interface SidebarProps {
   currentPath: string;
@@ -26,121 +22,188 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate }) => {
-  const { t } = useLanguage();
-  const { isAdmin, user } = useAuth();
-  const { selectedCenterName } = useCenter();
+  const { user, logout, dbStatus } = useAuth();
 
   const navItems = [
-    { path: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-4 h-4" />, adminOnly: false },
-    { path: 'customers', label: t('customers'), icon: <Users className="w-4 h-4" />, adminOnly: false },
-    { path: 'deliveries-morning', label: 'Morning Delivery', icon: <Sun className="w-4 h-4 text-amber-500" />, adminOnly: false },
-    { path: 'deliveries-evening', label: 'Evening Delivery', icon: <Moon className="w-4 h-4 text-indigo-400" />, adminOnly: false },
-    { path: 'collection', label: t('milk_collection'), icon: <Milk className="w-4 h-4" />, adminOnly: false, badge: 'Core' },
-    { path: 'payments', label: t('payments_settlement'), icon: <CreditCard className="w-4 h-4" />, adminOnly: false },
-    { path: 'ledger', label: t('customer_ledger'), icon: <BookOpen className="w-4 h-4" />, adminOnly: false },
-    { path: 'rates', label: t('milk_rates'), icon: <DollarSign className="w-4 h-4" />, adminOnly: true },
-    { path: 'reports', label: t('reports'), icon: <FileBarChart className="w-4 h-4" />, adminOnly: false },
-    { path: 'expenses', label: t('expenses'), icon: <Receipt className="w-4 h-4" />, adminOnly: false },
-    { path: 'staff', label: t('staff_management'), icon: <UserCog className="w-4 h-4" />, adminOnly: true },
-    { path: 'centers', label: t('collection_centers'), icon: <Building2 className="w-4 h-4" />, adminOnly: false },
-    { path: 'settings', label: t('settings'), icon: <Settings className="w-4 h-4" />, adminOnly: false },
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: <LayoutDashboard className="w-4 h-4" />,
+      active: true,
+      phase: 'Phase 1',
+      phaseStatus: 'Active',
+    },
+    {
+      id: 'customers',
+      label: 'Customers',
+      icon: <Users className="w-4 h-4" />,
+      active: true,
+      phase: 'Phase 2',
+      phaseStatus: 'Active',
+    },
+    {
+      id: 'deliveries-morning',
+      label: 'Morning Delivery',
+      icon: <Sun className="w-4 h-4 text-amber-500" />,
+      active: true,
+      phase: 'Phase 3',
+      phaseStatus: 'Active',
+    },
+    {
+      id: 'deliveries-evening',
+      label: 'Evening Delivery',
+      icon: <Moon className="w-4 h-4 text-indigo-400" />,
+      active: true,
+      phase: 'Phase 3',
+      phaseStatus: 'Active',
+    },
+    {
+      id: 'sales',
+      label: 'Day-wise Sales',
+      icon: <Receipt className="w-4 h-4 text-emerald-400" />,
+      active: true,
+      phase: 'Phase 4',
+      phaseStatus: 'Active',
+    },
+    {
+      id: 'payments',
+      label: 'Payments & Advance',
+      icon: <CreditCard className="w-4 h-4 text-emerald-400" />,
+      active: true,
+      phase: 'Phase 5',
+      phaseStatus: 'Active',
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: <Settings className="w-4 h-4" />,
+      active: true,
+      phase: 'Phase 6',
+      phaseStatus: 'Active',
+    },
   ];
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen select-none shrink-0">
+    <aside className="w-64 bg-slate-900 text-slate-200 border-r border-slate-800 flex flex-col h-screen select-none shrink-0 shadow-xl">
       {/* Brand Header */}
-      <div className="h-16 border-b border-slate-200 px-5 flex items-center gap-3 bg-white">
-        <div className="w-9 h-9 rounded-md bg-brand-900 text-white flex items-center justify-center font-black text-sm shadow-sm shrink-0 border border-brand-950 tracking-tight">
-          MH
+      <div className="h-18 px-5 py-4 border-b border-slate-800 flex items-center gap-3 bg-slate-950/60">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center font-black text-lg shadow-md shrink-0">
+          <Milk className="w-5 h-5 text-slate-950" />
         </div>
         <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="font-extrabold text-base text-slate-900 tracking-tight truncate">
-              {t('brand_name')}
-            </span>
-          </div>
-          <span className="text-[10px] font-medium text-brand-800 tracking-wider uppercase truncate">
-            {t('brand_sub')}
+          <span className="font-extrabold text-base text-white tracking-tight leading-tight truncate">
+            MILK CRM
+          </span>
+          <span className="text-[11px] font-medium text-emerald-400 tracking-wide uppercase truncate">
+            React + Node + TiDB
           </span>
         </div>
       </div>
 
-      {/* Active Center Badge Banner */}
-      <div className="px-4 py-2 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between text-xs text-slate-600">
-        <div className="flex items-center gap-1.5 truncate">
-          <Building2 className="w-3.5 h-3.5 text-brand-700 shrink-0" />
-          <span className="truncate font-medium">{selectedCenterName}</span>
+      {/* Role Notice Card */}
+      <div className="mx-3 my-3 p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-800/50 flex flex-col gap-1 text-[11px]">
+        <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+          <span>Owner Access Portal</span>
         </div>
+        <p className="text-slate-400 text-[10px] leading-tight">
+          Customer has <strong className="text-emerald-300">NO LOGIN</strong>. Owner is the primary system user.
+        </p>
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-0.5">
-        <div className="px-2 pb-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-          {t('main_menu')}
+      <nav className="flex-1 px-3 py-2 overflow-y-auto space-y-1">
+        <div className="px-2 pb-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+          Main Navigation
         </div>
         {navItems.map((item) => {
-          if (item.adminOnly && !isAdmin) return null;
-
-          const isActive = currentPath === item.path;
-
+          const isCurrent = currentPath === item.id;
           return (
             <button
-              key={item.path}
+              key={item.id}
               type="button"
-              onClick={() => onNavigate(item.path)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded text-xs font-medium transition-colors ${
-                isActive
-                  ? 'bg-brand-900 text-white shadow-subtle'
-                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+              onClick={() => onNavigate(item.id)}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
+                isCurrent
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <span className={isActive ? 'text-white' : 'text-slate-500'}>
+                <span className={isCurrent ? 'text-slate-950' : 'text-slate-400'}>
                   {item.icon}
                 </span>
                 <span className="truncate">{item.label}</span>
               </div>
-              {item.badge && (
-                <span
-                  className={`text-[10px] font-semibold px-1.5 py-0.2 rounded uppercase ${
-                    isActive
-                      ? 'bg-brand-800 text-brand-100'
-                      : 'bg-emerald-100 text-emerald-800'
-                  }`}
-                >
-                  {item.badge}
-                </span>
-              )}
+              <span
+                className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                  isCurrent
+                    ? 'bg-slate-950 text-emerald-400'
+                    : item.phaseStatus === 'Active'
+                    ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/60'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                }`}
+              >
+                {item.phase}
+              </span>
             </button>
           );
         })}
       </nav>
 
-      {/* User Role Card & Developed by in Footer */}
-      <div className="p-3 border-t border-slate-200 bg-slate-50/70 space-y-2">
-        <div className="flex items-center gap-2.5 p-2 rounded-md bg-white border border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-900 border border-brand-300 flex items-center justify-center text-xs font-bold shrink-0">
-            {user?.name ? user.name.charAt(0) : 'U'}
+      {/* TiDB Live Status Diagnostic */}
+      <div className="px-3 py-2 border-t border-slate-800/80 bg-slate-950/40 text-[11px]">
+        <div className="flex items-center justify-between text-slate-400 mb-1">
+          <span className="flex items-center gap-1 font-semibold text-slate-300">
+            <Database className="w-3.5 h-3.5 text-teal-400" />
+            TiDB Database
+          </span>
+          <span
+            className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+              dbStatus?.connected
+                ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                : 'bg-amber-950 text-amber-400 border border-amber-800'
+            }`}
+          >
+            {dbStatus?.connected ? (
+              <>
+                <CheckCircle2 className="w-2.5 h-2.5" /> Live TiDB
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-2.5 h-2.5" /> Fallback Mode
+              </>
+            )}
+          </span>
+        </div>
+        <div className="text-[10px] text-slate-500 font-mono">
+          {dbStatus?.host}:{dbStatus?.port} • {dbStatus?.database}
+        </div>
+      </div>
+
+      {/* Owner Profile & Logout */}
+      <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center text-xs font-bold shrink-0">
+            {user?.email?.charAt(0).toUpperCase() || 'O'}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-slate-900 truncate">
-              {user?.name || (isAdmin ? t('role_admin') : t('role_staff'))}
+            <div className="text-xs font-bold text-white truncate">
+              {user?.email || 'Owner'}
             </div>
-            <div className="flex items-center gap-1.5 text-[10px]">
-              <span
-                className={`font-semibold uppercase tracking-wider ${
-                  isAdmin ? 'text-brand-800' : 'text-slate-600'
-                }`}
-              >
-                {isAdmin ? t('role_admin') : t('role_staff')}
-              </span>
+            <div className="text-[10px] text-emerald-400 font-medium truncate">
+              Owner (Primary User)
             </div>
           </div>
         </div>
-
-        <div className="text-[10px] text-center text-slate-400 font-medium">
-          {t('developed_by')}
-        </div>
+        <button
+          type="button"
+          onClick={logout}
+          title="Sign out of Owner portal"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
     </aside>
   );

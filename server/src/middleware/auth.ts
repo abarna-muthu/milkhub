@@ -1,13 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyAuthToken } from '../utils/security.js';
-import { store } from '../db/store.js';
+import { tidb } from '../db/tidb.js';
 
 export interface AuthenticatedUser {
   id: string;
   email: string;
-  name: string;
-  role: string;
-  collection_center_id?: string;
+  role: 'owner';
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -15,13 +13,13 @@ export interface AuthenticatedRequest extends Request {
 }
 
 /**
- * Strict authentication middleware.
+ * Strict authentication middleware for Milk Business CRM.
+ * Owner is the primary system user (Customer has NO login).
  * Verifies HMAC-SHA256 JWT tokens from Authorization header: Bearer <token>.
- * Rejects unauthenticated requests with 401 Unauthorized.
  */
-export function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  // Allow public endpoints to pass through if mounted under /api
-  const publicPaths = ['/auth/login', '/auth/logout', '/health', '/db/status', '/reset-data'];
+export async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  // Allow public endpoints to pass through if accessed
+  const publicPaths = ['/auth/login', '/health', '/db/status'];
   if (publicPaths.some((p) => req.path === p || req.path === `/api${p}`)) {
     return next();
   }
@@ -50,42 +48,19 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
     });
   }
 
-  // Resolve store details (for center/name if available)
-  const storeUser = store.getUserByEmail(payload.email) || store.getUserById(payload.id);
-  const defaultCenter = store.getCenters()[0]?.id || 'c1';
+  // Verify user still exists in TiDB users table
+  const user = await tidb.findUserById(payload.id);
+  if (!user || user.status !== 'active') {
+    return res.status(401).json({
+      error: 'Unauthorized: Owner account is inactive or not found',
+    });
+  }
 
   req.user = {
-    id: payload.id,
-    email: payload.email,
-    name: payload.name || storeUser?.name || 'Owner Administrator',
-    role: payload.role || storeUser?.role || 'owner',
-    collection_center_id: storeUser?.collection_center_id || defaultCenter,
+    id: user.id,
+    email: user.email,
+    role: 'owner',
   };
 
   next();
-}
-
-/**
- * Role-based authorization guard
- */
-export function requireRole(allowedRoles: string[]) {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized: Authentication required' });
-    }
-
-    const userRole = req.user.role || 'owner';
-    // Admin / Owner has access to all roles
-    if (userRole === 'owner' || userRole === 'admin') {
-      return next();
-    }
-
-    if (!allowedRoles.includes(userRole)) {
-      return res.status(403).json({
-        error: `Forbidden: Only ${allowedRoles.join(', ')} can access this resource`,
-      });
-    }
-
-    next();
-  };
 }

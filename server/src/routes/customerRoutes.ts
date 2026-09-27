@@ -1,329 +1,266 @@
 import { Router, Response } from 'express';
 import { tidb } from '../db/tidb.js';
-import { store } from '../db/store.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
+import { CreateCustomerDTO, UpdateCustomerDTO, CustomerStatus } from '../types/index.js';
 
-export const customerRouter = Router();
+const router = Router();
+
+// Protect all customer routes with Owner auth middleware
+router.use(authMiddleware);
+
+/**
+ * Validation helper for customer data
+ */
+function validateCustomerPayload(
+  body: any,
+  isUpdate = false
+): { valid: boolean; error?: string; field?: string } {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Request body must be a valid JSON object' };
+  }
+
+  // Name validation
+  if (!isUpdate || body.name !== undefined) {
+    if (!body.name || typeof body.name !== 'string' || body.name.trim().length < 2) {
+      return { valid: false, error: 'Customer name is required and must be at least 2 characters', field: 'name' };
+    }
+  }
+
+  // Phone validation
+  if (!isUpdate || body.phone !== undefined) {
+    if (!body.phone || typeof body.phone !== 'string' || body.phone.trim().replace(/\D/g, '').length < 7) {
+      return { valid: false, error: 'Valid phone number is required (min 7 digits)', field: 'phone' };
+    }
+  }
+
+  // Address validation
+  if (!isUpdate || body.address !== undefined) {
+    if (!body.address || typeof body.address !== 'string' || body.address.trim().length < 2) {
+      return { valid: false, error: 'Customer address is required', field: 'address' };
+    }
+  }
+
+  // Area validation
+  if (!isUpdate || body.area !== undefined) {
+    if (!body.area || typeof body.area !== 'string' || body.area.trim().length < 2) {
+      return { valid: false, error: 'Area is required', field: 'area' };
+    }
+  }
+
+  // Default Morning Qty validation
+  if (!isUpdate || body.default_morning_qty !== undefined) {
+    const qty = Number(body.default_morning_qty);
+    if (isNaN(qty) || qty < 0) {
+      return { valid: false, error: 'Default morning quantity must be a non-negative number', field: 'default_morning_qty' };
+    }
+  }
+
+  // Default Evening Qty validation
+  if (!isUpdate || body.default_evening_qty !== undefined) {
+    const qty = Number(body.default_evening_qty);
+    if (isNaN(qty) || qty < 0) {
+      return { valid: false, error: 'Default evening quantity must be a non-negative number', field: 'default_evening_qty' };
+    }
+  }
+
+  // Milk Rate/Litre validation
+  if (!isUpdate || body.rate !== undefined) {
+    const rate = Number(body.rate);
+    if (isNaN(rate) || rate <= 0) {
+      return { valid: false, error: 'Milk rate per litre must be a positive number greater than 0', field: 'rate' };
+    }
+  }
+
+  // Start Date validation
+  if (!isUpdate || body.start_date !== undefined) {
+    if (!body.start_date || isNaN(Date.parse(body.start_date))) {
+      return { valid: false, error: 'Valid start date (YYYY-MM-DD) is required', field: 'start_date' };
+    }
+  }
+
+  // Status validation
+  if (body.status !== undefined) {
+    if (body.status !== 'active' && body.status !== 'inactive') {
+      return { valid: false, error: "Status must be either 'active' or 'inactive'", field: 'status' };
+    }
+  }
+
+  return { valid: true };
+}
 
 /**
  * GET /api/customers
- * List customers with multi-field search (Name, Phone, ID, Area) and filters (Center, Active/Inactive)
+ * List customers with search (name, phone, area) and filter (active, inactive)
  */
-customerRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const {
-      search,
-      center_id,
-      status,
-      area,
-      village,
-      page = '1',
-      limit = '50',
-    } = req.query;
+    const search = req.query.search as string | undefined;
+    const status = req.query.status as 'active' | 'inactive' | undefined;
 
-    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 50));
+    const customers = await tidb.getCustomers({ search, status });
 
-    const result = await tidb.getCustomers({
-      search: (search as string) || undefined,
-      center_id: (center_id as string) || undefined,
-      status: (status as string) || undefined,
-      area: (area || village) as string || undefined,
-      page: pageNum,
-      limit: limitNum,
-    });
-
-    // Enrich with dynamic balance metrics from store for ledger/payment readiness
-    const enriched = result.customers.map((cust) => {
-      const collections = store.getCollections({ customer_id: cust.id });
-      const payments = store.getPayments({ customer_id: cust.id });
-
-      const totalMilk = Number(collections.reduce((sum, c) => sum + c.quantity, 0).toFixed(1));
-      const totalAmount = Number(collections.reduce((sum, c) => sum + c.total_amount, 0).toFixed(2));
-      const totalPaid = Number(payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2));
-      const pendingAmount = Number((totalAmount - totalPaid).toFixed(2));
-
-      return {
-        ...cust,
-        total_milk: totalMilk,
-        total_amount: totalAmount,
-        total_paid: totalPaid,
-        pending_amount: pendingAmount,
-      };
-    });
-
+    // Respond with both array and envelope with total
     res.json({
-      customers: enriched,
-      total: result.total,
-      page: pageNum,
-      total_pages: Math.ceil(result.total / limitNum) || 1,
+      customers,
+      total: customers.length,
+      search: search || null,
+      status: status || null,
     });
   } catch (err: any) {
-    console.error('[Customer Error] GET /api/customers:', err);
-    res.status(500).json({ error: 'Failed to retrieve suppliers' });
-  }
-});
-
-/**
- * GET /api/customers/:id
- * Retrieve customer profile details and summary
- */
-customerRouter.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const cust = await tidb.getCustomerById(req.params.id);
-    if (!cust) {
-      return res.status(404).json({ error: 'Customer not found' });
-    }
-
-    const collections = store.getCollections({ customer_id: cust.id });
-    const payments = store.getPayments({ customer_id: cust.id });
-    const ledger = store.getLedgerByCustomerId(cust.id);
-
-    const totalMilk = Number(collections.reduce((sum, c) => sum + c.quantity, 0).toFixed(1));
-    const totalAmount = Number(collections.reduce((sum, c) => sum + c.total_amount, 0).toFixed(2));
-    const totalPaid = Number(payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2));
-    const pendingAmount = Number((totalAmount - totalPaid).toFixed(2));
-
-    res.json({
-      customer: cust,
-      summary: {
-        total_milk: totalMilk,
-        total_amount: totalAmount,
-        total_paid: totalPaid,
-        pending_amount: pendingAmount,
-        collection_count: collections.length,
-        payment_count: payments.length,
-      },
-      recent_collections: collections.slice(0, 10),
-      recent_payments: payments.slice(0, 10),
-      ledger_entries: ledger,
-    });
-  } catch (err: any) {
-    console.error('[Customer Error] GET /api/customers/:id:', err);
-    res.status(500).json({ error: 'Failed to retrieve customer details' });
-  }
-});
-
-/**
- * GET /api/customers/:id/history
- * Comprehensive customer detail & history (Phase 6)
- * Returns Date, Morning, Evening, Total, Rate, Sale, Advance Used, Paid, Due
- * Monthly Summary: Total Milk, Total Sales, Total Paid, Total Due, Advance Balance
- */
-customerRouter.get('/:id/history', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { month_year, from_date, to_date } = req.query;
-    const historyData = await tidb.getCustomerHistory(req.params.id, {
-      month_year: month_year as string,
-      from_date: from_date as string,
-      to_date: to_date as string,
-    });
-
-    if (!historyData.customer) {
-      return res.status(404).json({ error: 'Customer not found' });
-    }
-
-    res.json(historyData);
-  } catch (err: any) {
-    console.error('[Customer Error] GET /api/customers/:id/history:', err);
-    res.status(500).json({ error: 'Failed to retrieve customer history' });
+    console.error('Error fetching customers:', err);
+    res.status(500).json({ error: 'Failed to retrieve customers' });
   }
 });
 
 /**
  * POST /api/customers
- * Add new Customer / Milk Supplier (with full validation)
+ * Add new customer with validation
  */
-customerRouter.post('/', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const {
-      customer_code,
-      name,
-      phone,
-      mobile,
-      address,
-      area,
-      village,
-      center_id,
-      collection_center_id,
-      cow_count = 0,
-      buffalo_count = 0,
-      default_morning_qty = 1.0,
-      default_evening_qty = 1.0,
-      rate = 60.0,
-      start_date,
-      status = 'active',
-      notes,
-    } = req.body;
-
-    // 1. Validation
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: 'Supplier Name is required' });
+    const validation = validateCustomerPayload(req.body, false);
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: validation.error,
+        field: validation.field,
+      });
     }
 
-    const cleanPhone = (phone || mobile || '').trim();
-    if (!cleanPhone) {
-      return res.status(400).json({ error: 'Phone Number is required' });
-    }
-    // Clean digits check
-    const digitsOnly = cleanPhone.replace(/\D/g, '');
-    if (digitsOnly.length < 10) {
-      return res.status(400).json({ error: 'Please enter a valid 10-digit phone number' });
-    }
+    const payload: CreateCustomerDTO = {
+      name: req.body.name,
+      phone: req.body.phone,
+      address: req.body.address,
+      area: req.body.area,
+      default_morning_qty: Number(req.body.default_morning_qty) || 0,
+      default_evening_qty: Number(req.body.default_evening_qty) || 0,
+      rate: Number(req.body.rate),
+      start_date: String(req.body.start_date).split('T')[0],
+      status: (req.body.status as CustomerStatus) || 'active',
+    };
 
-    const cleanArea = (area || village || '').trim();
-    if (!cleanArea) {
-      return res.status(400).json({ error: 'Area / Village is required' });
-    }
+    const customer = await tidb.createCustomer(payload);
 
-    const targetCenterId = center_id || collection_center_id;
-    if (!targetCenterId) {
-      return res.status(400).json({ error: 'Collection Center must be assigned' });
-    }
-
-    // Verify center exists
-    const center = await tidb.getCenterById(targetCenterId);
-    if (!center) {
-      return res.status(400).json({ error: 'Assigned Collection Center does not exist' });
-    }
-
-    const numRate = Number(rate);
-    if (isNaN(numRate) || numRate <= 0) {
-      return res.status(400).json({ error: 'Rate per litre must be a positive number' });
-    }
-
-    const morningQty = Number(default_morning_qty);
-    if (isNaN(morningQty) || morningQty < 0) {
-      return res.status(400).json({ error: 'Default morning quantity cannot be negative' });
-    }
-
-    const eveningQty = Number(default_evening_qty);
-    if (isNaN(eveningQty) || eveningQty < 0) {
-      return res.status(400).json({ error: 'Default evening quantity cannot be negative' });
-    }
-
-    const numCow = Number(cow_count);
-    const numBuffalo = Number(buffalo_count);
-    if (numCow < 0 || numBuffalo < 0) {
-      return res.status(400).json({ error: 'Animal counts cannot be negative' });
-    }
-
-    // 2. Persist to TiDB
-    const saved = await tidb.createCustomer({
-      customer_code: customer_code?.trim(),
-      name: name.trim(),
-      phone: cleanPhone,
-      address: address?.trim() || '',
-      area: cleanArea,
-      center_id: targetCenterId,
-      cow_count: numCow,
-      buffalo_count: numBuffalo,
-      default_morning_qty: morningQty,
-      default_evening_qty: eveningQty,
-      rate: numRate,
-      start_date: start_date || new Date().toISOString().split('T')[0],
-      status: status === 'inactive' ? 'inactive' : 'active',
-      notes: notes?.trim() || '',
+    res.status(201).json({
+      message: 'Customer created successfully',
+      customer,
+      ...customer,
     });
-
-    // 3. Mirror to store for full local sync
-    store.addCustomer({
-      id: saved.id,
-      customer_code: saved.customer_code,
-      name: saved.name,
-      mobile: saved.phone,
-      address: saved.address || '',
-      village: saved.area,
-      cow_count: saved.cow_count,
-      buffalo_count: saved.buffalo_count,
-      default_session: 'both',
-      collection_center_id: saved.center_id,
-      status: saved.status,
-      notes: saved.notes || '',
-      created_at: saved.created_at,
-    });
-
-    res.status(201).json(saved);
   } catch (err: any) {
-    console.error('[Customer Error] POST /api/customers:', err);
-    res.status(500).json({ error: 'Failed to create supplier' });
+    console.error('Error creating customer:', err);
+    res.status(500).json({ error: 'Failed to create customer' });
+  }
+});
+
+/**
+ * GET /api/customers/:id
+ * View single customer details
+ */
+router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const customer = await tidb.getCustomerById(id);
+
+    if (!customer) {
+      return res.status(404).json({ error: `Customer with ID '${id}' not found` });
+    }
+
+    res.json({
+      customer,
+      ...customer,
+    });
+  } catch (err: any) {
+    console.error('Error fetching customer by id:', err);
+    res.status(500).json({ error: 'Failed to retrieve customer' });
   }
 });
 
 /**
  * PATCH /api/customers/:id
- * Edit supplier information
+ * Edit customer with validation
  */
-customerRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const updated = await tidb.updateCustomer(req.params.id, req.body);
-    if (!updated) {
-      return res.status(404).json({ error: 'Customer not found' });
+    const { id } = req.params;
+
+    const validation = validateCustomerPayload(req.body, true);
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: validation.error,
+        field: validation.field,
+      });
     }
 
-    // Mirror to store
-    store.updateCustomer(req.params.id, {
-      customer_code: updated.customer_code,
-      name: updated.name,
-      mobile: updated.phone,
-      address: updated.address,
-      village: updated.area,
-      collection_center_id: updated.center_id,
-      cow_count: updated.cow_count,
-      buffalo_count: updated.buffalo_count,
-      status: updated.status,
-    });
-
-    res.json(updated);
-  } catch (err: any) {
-    console.error('[Customer Error] PATCH /api/customers/:id:', err);
-    res.status(500).json({ error: 'Failed to update supplier' });
-  }
-});
-
-/**
- * PUT /api/customers/:id (backward compatibility alias for PATCH)
- */
-customerRouter.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const updated = await tidb.updateCustomer(req.params.id, req.body);
-    if (!updated) {
-      return res.status(404).json({ error: 'Customer not found' });
-    }
-    store.updateCustomer(req.params.id, {
-      customer_code: updated.customer_code,
-      name: updated.name,
-      mobile: updated.phone,
-      address: updated.address,
-      village: updated.area,
-      collection_center_id: updated.center_id,
-      status: updated.status,
-    });
-    res.json(updated);
-  } catch (err: any) {
-    res.status(500).json({ error: 'Failed to update supplier' });
-  }
-});
-
-/**
- * DELETE /api/customers/:id
- * Soft delete: deactivates supplier to protect historical delivery and payment records
- */
-customerRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const success = await tidb.deactivateCustomer(req.params.id);
-    if (!success) {
-      return res.status(404).json({ error: 'Customer not found' });
+    const existing = await tidb.getCustomerById(id);
+    if (!existing) {
+      return res.status(404).json({ error: `Customer with ID '${id}' not found` });
     }
 
-    store.updateCustomer(req.params.id, { status: 'inactive' });
+    const updateData: UpdateCustomerDTO = {};
+    if (req.body.name !== undefined) updateData.name = req.body.name;
+    if (req.body.phone !== undefined) updateData.phone = req.body.phone;
+    if (req.body.address !== undefined) updateData.address = req.body.address;
+    if (req.body.area !== undefined) updateData.area = req.body.area;
+    if (req.body.default_morning_qty !== undefined)
+      updateData.default_morning_qty = Number(req.body.default_morning_qty);
+    if (req.body.default_evening_qty !== undefined)
+      updateData.default_evening_qty = Number(req.body.default_evening_qty);
+    if (req.body.rate !== undefined) updateData.rate = Number(req.body.rate);
+    if (req.body.start_date !== undefined)
+      updateData.start_date = String(req.body.start_date).split('T')[0];
+    if (req.body.status !== undefined) updateData.status = req.body.status;
+
+    const updated = await tidb.updateCustomer(id, updateData);
 
     res.json({
-      message: 'Supplier deactivated successfully. Historical records preserved.',
-      status: 'inactive',
+      message: 'Customer updated successfully',
+      customer: updated,
+      ...updated,
     });
   } catch (err: any) {
-    console.error('[Customer Error] DELETE /api/customers/:id:', err);
-    res.status(500).json({ error: 'Failed to deactivate supplier' });
+    console.error('Error updating customer:', err);
+    res.status(500).json({ error: 'Failed to update customer' });
   }
 });
+
+/**
+ * Phase 5: GET /api/customers/:id/advance
+ * Fetch customer advance balance and traceable advance ledger
+ */
+router.get('/:id/advance', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const advanceInfo = await tidb.getCustomerAdvance(id);
+    res.json(advanceInfo);
+  } catch (err: any) {
+    if (err.message && err.message.includes('not exist')) {
+      return res.status(404).json({ error: err.message });
+    }
+    console.error('Error fetching customer advance ledger:', err);
+    res.status(500).json({ error: 'Failed to retrieve customer advance details' });
+  }
+});
+
+/**
+ * Phase 6: GET /api/customers/:id/history
+ * Fetch customer historical delivery/sales ledger & monthly summary
+ * Query params: ?month=YYYY-MM (optional)
+ * History: Date, Morning, Evening, Total, Sale, Advance Used, Paid, Due
+ * Monthly Summary: Total Milk, Total Sales, Total Paid, Total Due, Advance Balance
+ */
+router.get('/:id/history', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const month = req.query.month as string | undefined;
+
+    const history = await tidb.getCustomerHistory(id, month);
+    res.json(history);
+  } catch (err: any) {
+    if (err.message && err.message.includes('not exist')) {
+      return res.status(404).json({ error: err.message });
+    }
+    console.error('Error fetching customer history:', err);
+    res.status(500).json({ error: 'Failed to retrieve customer history' });
+  }
+});
+
+export const customerRouter = router;

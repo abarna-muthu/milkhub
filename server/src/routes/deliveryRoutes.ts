@@ -1,210 +1,190 @@
 import { Router, Response } from 'express';
 import { tidb } from '../db/tidb.js';
-import { AuthenticatedRequest } from '../middleware/auth.js';
-import { DeliverySession, DeliveryStatus } from '../types/index.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
+import { SaveDeliveryDTO } from '../types/index.js';
 
-export const deliveryRouter = Router();
+const router = Router();
+
+// Protect all delivery routes with Owner auth middleware
+router.use(authMiddleware);
 
 /**
- * GET /api/deliveries/center-totals
- * Center-wise and overall totals calculated dynamically from delivery records
+ * Validate a single delivery payload
  */
-deliveryRouter.get('/center-totals', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-    const totals = await tidb.getCenterTotals(date);
-    res.json(totals);
-  } catch (err: any) {
-    console.error('[Delivery Error] GET /api/deliveries/center-totals:', err);
-    res.status(500).json({ error: 'Failed to calculate center totals' });
+function validateDeliveryItem(
+  item: any
+): { valid: boolean; error?: string; field?: string } {
+  if (!item || typeof item !== 'object') {
+    return { valid: false, error: 'Delivery item must be a valid JSON object' };
   }
-});
+
+  if (!item.customer_id || typeof item.customer_id !== 'string') {
+    return { valid: false, error: 'customer_id is required', field: 'customer_id' };
+  }
+
+  if (!item.date || isNaN(Date.parse(item.date))) {
+    return { valid: false, error: 'Valid date (YYYY-MM-DD) is required', field: 'date' };
+  }
+
+  if (!item.session || typeof item.session !== 'string') {
+    return { valid: false, error: "session is required ('morning' or 'evening')", field: 'session' };
+  }
+
+  const normSession = item.session.toLowerCase();
+  if (!normSession.includes('morn') && !normSession.includes('eve')) {
+    return { valid: false, error: "session must be 'morning' or 'evening'", field: 'session' };
+  }
+
+  if (item.actual_qty !== undefined) {
+    const qty = Number(item.actual_qty);
+    if (isNaN(qty) || qty < 0) {
+      return { valid: false, error: 'actual_qty must be a non-negative number (0 or greater)', field: 'actual_qty' };
+    }
+  }
+
+  if (item.status !== undefined && typeof item.status === 'string') {
+    const normStatus = item.status.toLowerCase();
+    if (!normStatus.includes('deliv') && !normStatus.includes('no')) {
+      return { valid: false, error: "status must be 'delivered' or 'no_milk'", field: 'status' };
+    }
+  }
+
+  return { valid: true };
+}
 
 /**
  * GET /api/deliveries
- * Loads deliveries for selected date and session (MORNING / EVENING).
- * Pre-fills default quantities for active suppliers if not yet entered.
+ * Query params: ?date=YYYY-MM-DD&session=morning|evening
+ * Loads active customers, pre-fills default quantity, merges saved delivery records
  */
-deliveryRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-    const sessionInput = ((req.query.session as string) || 'MORNING').toUpperCase();
-    const session: DeliverySession = sessionInput === 'EVENING' ? 'EVENING' : 'MORNING';
-    const center_id = (req.query.center_id as string) || undefined;
-    const search = (req.query.search as string) || undefined;
+    const today = new Date().toISOString().split('T')[0];
+    const date = (req.query.date as string) || today;
+    const rawSession = (req.query.session as string) || 'morning';
 
-    const deliveries = await tidb.getDeliveries({
-      date,
-      session,
-      center_id,
-      search,
-    });
+    const result = await tidb.getDeliveriesForSession(date, rawSession);
 
-    res.json({
-      date,
-      session,
-      deliveries,
-      count: deliveries.length,
-      total_litres: Number(
-        deliveries
-          .filter((d) => d.status === 'DELIVERED')
-          .reduce((sum, d) => sum + Number(d.actual_qty || 0), 0)
-          .toFixed(2)
-      ),
-    });
+    res.json(result);
   } catch (err: any) {
-    console.error('[Delivery Error] GET /api/deliveries:', err);
+    console.error('Error fetching deliveries:', err);
     res.status(500).json({ error: 'Failed to retrieve deliveries' });
   }
 });
 
 /**
  * POST /api/deliveries
- * Save single delivery record (auto updates if duplicate customer + date + session)
+ * Save a single delivery record or multiple delivery records
+ * CRITICAL BUSINESS RULE:
+ * Customer default quantity is NEVER changed when today's actual quantity is edited.
  */
-deliveryRouter.post('/', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id, customer_id, center_id, date, session, actual_qty, status } = req.body;
-
-    if (!customer_id) {
-      return res.status(400).json({ error: 'Customer ID is required' });
-    }
-    if (!date) {
-      return res.status(400).json({ error: 'Delivery date is required' });
-    }
-
-    // Check customer existence and status
-    const customer = await tidb.getCustomerById(customer_id);
-    if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
-    }
-    if (customer.status === 'inactive') {
-      return res.status(400).json({ error: 'Cannot record delivery for an inactive customer' });
-    }
-
-    // Check center existence
-    const targetCenterId = center_id || customer.center_id;
-    if (targetCenterId) {
-      const center = await tidb.getCenterById(targetCenterId);
-      if (!center) {
-        return res.status(404).json({ error: 'Collection center not found' });
+    // Check if bulk delivery array
+    if (Array.isArray(req.body.deliveries)) {
+      const deliveriesToSave: SaveDeliveryDTO[] = [];
+      for (let i = 0; i < req.body.deliveries.length; i++) {
+        const item = req.body.deliveries[i];
+        const val = validateDeliveryItem(item);
+        if (!val.valid) {
+          return res.status(400).json({
+            error: `Item ${i}: ${val.error}`,
+            field: val.field,
+          });
+        }
+        deliveriesToSave.push({
+          customer_id: item.customer_id,
+          date: String(item.date).split('T')[0],
+          session: item.session,
+          actual_qty: Number(item.actual_qty) >= 0 ? Number(item.actual_qty) : 0,
+          status: item.status || 'delivered',
+        });
       }
+
+      const saved = await tidb.saveDeliveriesBulk(deliveriesToSave);
+      return res.status(201).json({
+        message: 'Deliveries saved successfully',
+        count: saved.length,
+        deliveries: saved,
+      });
     }
 
-    // Negative quantity check
-    const rawQty = Number(actual_qty);
-    if (!isNaN(rawQty) && rawQty < 0) {
-      return res.status(400).json({ error: 'Delivery quantity cannot be negative' });
+    // Single delivery save
+    const val = validateDeliveryItem(req.body);
+    if (!val.valid) {
+      return res.status(400).json({
+        error: val.error,
+        field: val.field,
+      });
     }
 
-    const deliverySession: DeliverySession =
-      String(session).toUpperCase() === 'EVENING' ? 'EVENING' : 'MORNING';
-    const deliveryStatus: DeliveryStatus =
-      String(status).toUpperCase() === 'NO_MILK' ? 'NO_MILK' : 'DELIVERED';
-
-    let qty = isNaN(rawQty) ? 0 : rawQty;
-    if (deliveryStatus === 'NO_MILK') {
-      qty = 0;
+    // Verify customer exists
+    const customer = await tidb.getCustomerById(req.body.customer_id);
+    if (!customer) {
+      return res.status(404).json({ error: `Customer '${req.body.customer_id}' not found` });
     }
 
-    const saved = await tidb.saveDelivery({
-      id,
-      customer_id,
-      center_id: targetCenterId,
-      date,
-      session: deliverySession,
-      actual_qty: qty,
-      status: deliveryStatus,
+    const payload: SaveDeliveryDTO = {
+      customer_id: req.body.customer_id,
+      date: String(req.body.date).split('T')[0],
+      session: req.body.session,
+      actual_qty: Number(req.body.actual_qty) >= 0 ? Number(req.body.actual_qty) : 0,
+      status: req.body.status || 'delivered',
+    };
+
+    const saved = await tidb.saveDelivery(payload);
+
+    res.status(201).json({
+      message: 'Delivery recorded successfully',
+      delivery: saved,
+      ...saved,
     });
-
-    res.status(201).json(saved);
   } catch (err: any) {
-    console.error('[Delivery Error] POST /api/deliveries:', err);
-    res.status(500).json({ error: 'Failed to record delivery' });
+    console.error('Error saving delivery:', err);
+    res.status(500).json({ error: 'Failed to save delivery' });
   }
 });
 
 /**
  * POST /api/deliveries/bulk
- * Save multiple rows in one operation ("Save All")
+ * Explicit bulk saving endpoint
  */
-deliveryRouter.post('/bulk', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/bulk', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const deliveriesInput = req.body.deliveries;
-    if (!Array.isArray(deliveriesInput) || deliveriesInput.length === 0) {
-      return res.status(400).json({ error: 'Deliveries array is required' });
+    const list = Array.isArray(req.body.deliveries) ? req.body.deliveries : req.body;
+    if (!Array.isArray(list)) {
+      return res.status(400).json({ error: 'Payload must include deliveries array' });
     }
 
-    const cleaned = deliveriesInput.map((item: any) => {
-      const deliverySession: DeliverySession =
-        String(item.session).toUpperCase() === 'EVENING' ? 'EVENING' : 'MORNING';
-      const deliveryStatus: DeliveryStatus =
-        String(item.status).toUpperCase() === 'NO_MILK' ? 'NO_MILK' : 'DELIVERED';
-
-      let qty = Number(item.actual_qty);
-      if (isNaN(qty) || qty < 0 || deliveryStatus === 'NO_MILK') {
-        qty = 0;
+    const deliveriesToSave: SaveDeliveryDTO[] = [];
+    for (let i = 0; i < list.length; i++) {
+      const item = list[i];
+      const val = validateDeliveryItem(item);
+      if (!val.valid) {
+        return res.status(400).json({
+          error: `Item ${i}: ${val.error}`,
+          field: val.field,
+        });
       }
-
-      return {
-        id: item.id,
+      deliveriesToSave.push({
         customer_id: item.customer_id,
-        center_id: item.center_id,
-        date: item.date,
-        session: deliverySession,
-        actual_qty: qty,
-        status: deliveryStatus,
-      };
-    });
+        date: String(item.date).split('T')[0],
+        session: item.session,
+        actual_qty: Number(item.actual_qty) >= 0 ? Number(item.actual_qty) : 0,
+        status: item.status || 'delivered',
+      });
+    }
 
-    const results = await tidb.saveBulkDeliveries(cleaned);
-    res.json({
-      message: `Successfully saved ${results.length} delivery records`,
-      saved: results,
+    const saved = await tidb.saveDeliveriesBulk(deliveriesToSave);
+    res.status(200).json({
+      message: 'Deliveries saved successfully',
+      count: saved.length,
+      deliveries: saved,
     });
   } catch (err: any) {
-    console.error('[Delivery Error] POST /api/deliveries/bulk:', err);
-    res.status(500).json({ error: 'Failed to bulk-save deliveries' });
+    console.error('Error bulk saving deliveries:', err);
+    res.status(500).json({ error: 'Failed to bulk save deliveries' });
   }
 });
 
-/**
- * PATCH /api/deliveries/:id
- * Update an existing delivery record
- */
-deliveryRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { actual_qty, status } = req.body;
-    const deliveryStatus: DeliveryStatus =
-      String(status).toUpperCase() === 'NO_MILK' ? 'NO_MILK' : 'DELIVERED';
-    let qty = Number(actual_qty);
-    if (isNaN(qty) || qty < 0 || deliveryStatus === 'NO_MILK') {
-      qty = 0;
-    }
-
-    const existing = await tidb.getDeliveries({
-      date: req.body.date || new Date().toISOString().split('T')[0],
-      session: req.body.session || 'MORNING',
-    });
-    const found = existing.find((d) => d.id === req.params.id);
-
-    if (!found) {
-      return res.status(404).json({ error: 'Delivery record not found' });
-    }
-
-    const saved = await tidb.saveDelivery({
-      id: req.params.id,
-      customer_id: found.customer_id,
-      center_id: found.center_id,
-      date: found.date,
-      session: found.session,
-      actual_qty: qty,
-      status: deliveryStatus,
-    });
-
-    res.json(saved);
-  } catch (err: any) {
-    console.error('[Delivery Error] PATCH /api/deliveries/:id:', err);
-    res.status(500).json({ error: 'Failed to update delivery' });
-  }
-});
+export const deliveryRouter = router;

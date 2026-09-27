@@ -1,23 +1,19 @@
 import React from 'react';
 import {
+  X,
   LayoutDashboard,
   Users,
-  Milk,
-  CreditCard,
-  BookOpen,
-  DollarSign,
-  FileBarChart,
-  Receipt,
-  UserCog,
-  Building2,
-  Settings,
-  X,
   Sun,
   Moon,
+  CreditCard,
+  Settings,
+  Database,
+  ShieldCheck,
+  LogOut,
+  Milk,
+  Receipt,
 } from 'lucide-react';
-import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
-import { useCenter } from '../../context/CenterContext';
 
 interface MobileNavProps {
   isOpen: boolean;
@@ -32,96 +28,92 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   currentPath,
   onNavigate,
 }) => {
-  const { t } = useLanguage();
-  const { isAdmin, user } = useAuth();
-  const { selectedCenterName } = useCenter();
-
-  const navItems = [
-    { path: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-4 h-4" />, adminOnly: false },
-    { path: 'customers', label: t('customers'), icon: <Users className="w-4 h-4" />, adminOnly: false },
-    { path: 'deliveries-morning', label: 'Morning Delivery', icon: <Sun className="w-4 h-4 text-amber-500" />, adminOnly: false },
-    { path: 'deliveries-evening', label: 'Evening Delivery', icon: <Moon className="w-4 h-4 text-indigo-400" />, adminOnly: false },
-    { path: 'collection', label: t('milk_collection'), icon: <Milk className="w-4 h-4" />, adminOnly: false },
-    { path: 'payments', label: t('payments_settlement'), icon: <CreditCard className="w-4 h-4" />, adminOnly: false },
-    { path: 'ledger', label: t('customer_ledger'), icon: <BookOpen className="w-4 h-4" />, adminOnly: false },
-    { path: 'rates', label: t('milk_rates'), icon: <DollarSign className="w-4 h-4" />, adminOnly: true },
-    { path: 'reports', label: t('reports'), icon: <FileBarChart className="w-4 h-4" />, adminOnly: false },
-    { path: 'expenses', label: t('expenses'), icon: <Receipt className="w-4 h-4" />, adminOnly: false },
-    { path: 'staff', label: t('staff_management'), icon: <UserCog className="w-4 h-4" />, adminOnly: true },
-    { path: 'centers', label: t('collection_centers'), icon: <Building2 className="w-4 h-4" />, adminOnly: false },
-    { path: 'settings', label: t('settings'), icon: <Settings className="w-4 h-4" />, adminOnly: false },
-  ];
+  const { user, logout, dbStatus } = useAuth();
 
   if (!isOpen) return null;
 
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, phase: 'Phase 1' },
+    { id: 'customers', label: 'Customers', icon: <Users className="w-4 h-4" />, phase: 'Phase 2' },
+    { id: 'deliveries-morning', label: 'Morning Delivery', icon: <Sun className="w-4 h-4 text-amber-500" />, phase: 'Phase 3' },
+    { id: 'deliveries-evening', label: 'Evening Delivery', icon: <Moon className="w-4 h-4 text-indigo-400" />, phase: 'Phase 3' },
+    { id: 'sales', label: 'Day-wise Sales', icon: <Receipt className="w-4 h-4 text-emerald-400" />, phase: 'Phase 4' },
+    { id: 'payments', label: 'Payments & Advance', icon: <CreditCard className="w-4 h-4 text-emerald-400" />, phase: 'Phase 5' },
+    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" />, phase: 'Phase 6' },
+  ];
+
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div className="fixed inset-0 z-50 md:hidden flex">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
       {/* Drawer */}
-      <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-2xl flex flex-col z-50 border-r border-slate-200">
-        {/* Header */}
-        <div className="h-16 px-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-brand-900 text-white flex items-center justify-center font-bold text-sm">
-              MH
+      <div className="relative w-72 max-w-[80vw] bg-slate-900 text-slate-200 h-full flex flex-col shadow-2xl z-10">
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
+              <Milk className="w-4 h-4" />
             </div>
-            <div>
-              <div className="font-bold text-xs text-slate-900">{t('brand_name')}</div>
-              <div className="text-[10px] text-brand-800 font-medium">{selectedCenterName}</div>
-            </div>
+            <span className="font-extrabold text-white text-base">MILK CRM</span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Links */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navItems.map((item) => {
-            if (item.adminOnly && !isAdmin) return null;
-            const isActive = currentPath === item.path;
+        <div className="p-3 bg-emerald-950/40 border-b border-emerald-800/40 text-[11px] text-emerald-300">
+          Customer has NO LOGIN. Owner is the primary system user.
+        </div>
 
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          {navItems.map((item) => {
+            const isCurrent = currentPath === item.id;
             return (
               <button
-                key={item.path}
+                key={item.id}
                 type="button"
                 onClick={() => {
-                  onNavigate(item.path);
+                  onNavigate(item.id);
                   onClose();
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-xs font-medium transition-colors ${
-                  isActive
-                    ? 'bg-brand-900 text-white shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-100'
+                className={`w-full flex items-center justify-between p-2.5 rounded-lg text-xs font-medium ${
+                  isCurrent
+                    ? 'bg-emerald-500 text-slate-950 font-bold'
+                    : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <span className={isActive ? 'text-white' : 'text-slate-500'}>
+                <div className="flex items-center gap-2.5">
                   {item.icon}
-                </span>
-                <span>{item.label}</span>
+                  <span>{item.label}</span>
+                </div>
+                <span className="text-[10px] opacity-70">{item.phase}</span>
               </button>
             );
           })}
-        </div>
+        </nav>
 
-        {/* Footer */}
-        <div className="p-3 border-t border-slate-200 bg-slate-50 text-xs">
-          <div className="text-slate-900 font-medium truncate">{user?.name}</div>
-          <div className="text-slate-500 text-[10px] uppercase font-semibold">
-            {isAdmin ? 'Administrator' : 'Collection Staff'}
+        <div className="p-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+          <div className="min-w-0">
+            <div className="text-xs font-bold text-white truncate">{user?.email}</div>
+            <div className="text-[10px] text-emerald-400">Owner Account</div>
           </div>
-          <div className="text-[9px] text-slate-500 pt-1 mt-1 border-t border-slate-200/60 font-medium">
-            {t('developed_by')}
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              onClose();
+            }}
+            className="p-2 text-rose-400 hover:bg-slate-800 rounded-lg"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>

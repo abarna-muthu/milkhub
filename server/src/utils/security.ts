@@ -15,7 +15,6 @@ export function hashPassword(password: string): string {
 
 /**
  * Verify a plain text password against a stored salt:hash string.
- * Supports legacy or seeded plain passwords gracefully during migration if needed.
  */
 export function verifyPassword(password: string, storedHash: string): boolean {
   if (!storedHash || !password) return false;
@@ -31,7 +30,7 @@ export function verifyPassword(password: string, storedHash: string): boolean {
     return crypto.timingSafeEqual(keyBuffer, derivedKey);
   }
 
-  // Fallback for initial unhashed seed if present
+  // Fallback for unhashed seeds
   return password === storedHash;
 }
 
@@ -41,25 +40,21 @@ export function verifyPassword(password: string, storedHash: string): boolean {
 export function isValidEmail(email: string): boolean {
   if (!email || typeof email !== 'string') return false;
   const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  // Also accept standard admin handles like admin@milkhub
   const simpleRe = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+$/;
   return re.test(email.trim()) || simpleRe.test(email.trim());
 }
 
-/**
- * Generate a cryptographically signed HMAC-SHA256 token (JWT format)
- * Header.Payload.Signature
- */
 export interface TokenPayload {
   id: string;
   email: string;
-  name?: string;
-  role?: string;
-  collection_center_id?: string;
+  role: 'owner';
   iat?: number;
   exp?: number;
 }
 
+/**
+ * Generate a cryptographically signed HMAC-SHA256 token (JWT format)
+ */
 export function generateAuthToken(payload: TokenPayload, expiresInDays: number = 7): string {
   const header = {
     alg: 'HS256',
@@ -116,7 +111,7 @@ export function verifyAuthToken(token: string): TokenPayload | null {
     }
 
     return payload;
-  } catch (err) {
+  } catch {
     return null;
   }
 }

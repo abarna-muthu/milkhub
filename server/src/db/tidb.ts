@@ -2,53 +2,47 @@ import mysql, { Pool, PoolOptions } from 'mysql2/promise';
 import dotenv from 'dotenv';
 import { hashPassword } from '../utils/security.js';
 import {
-  CollectionCenter,
+  User,
+  DBStatus,
   Customer,
+  CreateCustomerDTO,
+  UpdateCustomerDTO,
+  CustomerQueryParams,
   Delivery,
   DeliverySession,
   DeliveryStatus,
-  PaymentRecord,
+  SaveDeliveryDTO,
+  DeliveryItemResponse,
+  DeliveriesListResponse,
+  Sale,
+  DayWiseSaleItem,
+  SalesSummary,
+  SalesResponse,
+  Payment,
   PaymentType,
-  PaymentMode,
   AdvanceLedgerEntry,
   AdvanceLedgerType,
-  DailyPaymentSummary,
+  CreatePaymentDTO,
+  CustomerAdvanceInfo,
+  CustomerHistoryItem,
+  CustomerMonthlySummary,
+  CustomerHistoryResponse,
 } from '../types/index.js';
 
 dotenv.config();
-
-export interface TiDBUser {
-  id: string;
-  email: string;
-  password_hash: string;
-  status: 'active' | 'inactive';
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DBStatus {
-  connected: boolean;
-  type: 'tidb' | 'local_fallback';
-  host: string;
-  port: number;
-  database: string;
-  usersCount: number;
-  centersCount: number;
-  customersCount: number;
-  error?: string;
-  lastChecked: string;
-}
 
 class TiDBService {
   private pool: Pool | null = null;
   private isConnected: boolean = false;
   private connectionError: string | null = null;
+  private isInitialized: boolean = false;
 
-  // Local fallback storage for users
-  private fallbackUsers: TiDBUser[] = [
+  // Local fallback storage for users if TiDB connection is unavailable
+  private fallbackUsers: User[] = [
+
     {
-      id: 'u_admin_001',
-      email: (process.env.DEFAULT_OWNER_EMAIL || 'milkhub@admin.com').toLowerCase(),
+      id: 'u_owner_001',
+      email: (process.env.DEFAULT_OWNER_EMAIL || 'milkhub@admin.com').trim().toLowerCase(),
       password_hash: hashPassword(process.env.DEFAULT_OWNER_PASSWORD || 'Admin@123'),
       status: 'active',
       created_at: new Date().toISOString(),
@@ -56,136 +50,88 @@ class TiDBService {
     },
   ];
 
-  // Local fallback storage for Collection Centers
-  private fallbackCenters: CollectionCenter[] = [
-    {
-      id: 'c1',
-      center_name: 'Srivilliputtur Center',
-      name: 'Srivilliputtur Center',
-      location: 'Madurai Road, Srivilliputtur',
-      code: 'SVPR',
-      phone: '+91 98421 11220',
-      status: 'active',
-      is_active: true,
-      created_at: '2026-01-10T08:00:00Z',
-      updated_at: '2026-01-10T08:00:00Z',
-    },
-    {
-      id: 'c2',
-      center_name: 'RJPLM Center',
-      name: 'RJPLM Center',
-      location: 'Tenkasi Highway, Rajapalayam',
-      code: 'RJPM',
-      phone: '+91 98421 11221',
-      status: 'active',
-      is_active: true,
-      created_at: '2026-01-15T08:00:00Z',
-      updated_at: '2026-01-15T08:00:00Z',
-    },
-    {
-      id: 'c3',
-      center_name: 'Sivakasi Center',
-      name: 'Sivakasi Center',
-      location: 'Sattur Road, Sivakasi',
-      code: 'SVKS',
-      phone: '+91 98421 11222',
-      status: 'active',
-      is_active: true,
-      created_at: '2026-02-01T08:00:00Z',
-      updated_at: '2026-02-01T08:00:00Z',
-    },
-    {
-      id: 'c4',
-      center_name: 'Virudhunagar Center',
-      name: 'Virudhunagar Center',
-      location: 'Collectorate Junction, Virudhunagar',
-      code: 'VDR',
-      phone: '+91 98421 11223',
-      status: 'active',
-      is_active: true,
-      created_at: '2026-02-10T08:00:00Z',
-      updated_at: '2026-02-10T08:00:00Z',
-    },
-  ];
-
-  // Local fallback storage for Customers / Milk Suppliers
+  // Local fallback storage for customers (Phase 2)
   private fallbackCustomers: Customer[] = [
     {
-      id: 'cust_1',
-      customer_code: 'SUP001',
-      name: 'Ramesh',
+      id: 'cust_001',
+      name: 'Muthu Kumar',
       phone: '9876543210',
-      mobile: '9876543210',
-      address: '14 Tenkasi Main Road',
-      area: 'Srivilliputtur',
-      village: 'Srivilliputtur',
-      center_id: 'c1',
-      collection_center_id: 'c1',
-      center_name: 'Srivilliputtur Center',
-      cow_count: 2,
-      buffalo_count: 1,
+      address: '12 Bazaar Street',
+      area: 'North Ward',
+      default_morning_qty: 2.0,
+      default_evening_qty: 1.5,
+      rate: 58.0,
+      start_date: '2026-01-10',
+      status: 'active',
+      created_at: '2026-01-10T06:00:00.000Z',
+      updated_at: '2026-01-10T06:00:00.000Z',
+    },
+    {
+      id: 'cust_002',
+      name: 'Priya Selvam',
+      phone: '9842109876',
+      address: '45 Temple Road',
+      area: 'East Gate',
       default_morning_qty: 1.0,
       default_evening_qty: 1.0,
       rate: 60.0,
-      start_date: '2026-01-01',
-      status: 'active',
-      notes: 'Reliable supplier, morning delivery priority',
-      created_at: '2026-01-01T08:00:00Z',
-      updated_at: '2026-01-01T08:00:00Z',
-    },
-    {
-      id: 'cust_2',
-      customer_code: 'SUP002',
-      name: 'Murugan',
-      phone: '9876543211',
-      mobile: '9876543211',
-      address: '22 Station Road',
-      area: 'Rajapalayam',
-      village: 'Rajapalayam',
-      center_id: 'c2',
-      collection_center_id: 'c2',
-      center_name: 'RJPLM Center',
-      cow_count: 3,
-      buffalo_count: 0,
-      default_morning_qty: 1.5,
-      default_evening_qty: 1.0,
-      rate: 60.0,
-      start_date: '2026-01-15',
-      status: 'active',
-      notes: 'Cow milk supplier',
-      created_at: '2026-01-15T08:00:00Z',
-      updated_at: '2026-01-15T08:00:00Z',
-    },
-    {
-      id: 'cust_3',
-      customer_code: 'SUP003',
-      name: 'Selvaraj',
-      phone: '9876543212',
-      mobile: '9876543212',
-      address: '5 West Car Street',
-      area: 'Srivilliputtur',
-      village: 'Srivilliputtur',
-      center_id: 'c1',
-      collection_center_id: 'c1',
-      center_name: 'Srivilliputtur Center',
-      cow_count: 1,
-      buffalo_count: 2,
-      default_morning_qty: 2.0,
-      default_evening_qty: 1.5,
-      rate: 62.0,
       start_date: '2026-02-01',
       status: 'active',
-      notes: 'Buffalo milk specialist',
-      created_at: '2026-02-01T08:00:00Z',
-      updated_at: '2026-02-01T08:00:00Z',
+      created_at: '2026-02-01T06:00:00.000Z',
+      updated_at: '2026-02-01T06:00:00.000Z',
+    },
+    {
+      id: 'cust_003',
+      name: 'Rajesh Kannan',
+      phone: '9789012345',
+      address: '8 Gandhi Nagar',
+      area: 'North Ward',
+      default_morning_qty: 3.5,
+      default_evening_qty: 2.0,
+      rate: 56.0,
+      start_date: '2026-02-15',
+      status: 'active',
+      created_at: '2026-02-15T06:00:00.000Z',
+      updated_at: '2026-02-15T06:00:00.000Z',
+    },
+    {
+      id: 'cust_004',
+      name: 'Anitha Ramesh',
+      phone: '9944123456',
+      address: '21 Lake View',
+      area: 'South Extension',
+      default_morning_qty: 1.5,
+      default_evening_qty: 0.0,
+      rate: 60.0,
+      start_date: '2026-03-01',
+      status: 'inactive',
+      created_at: '2026-03-01T06:00:00.000Z',
+      updated_at: '2026-03-01T06:00:00.000Z',
+    },
+    {
+      id: 'cust_005',
+      name: 'Senthil Nathan',
+      phone: '9865123987',
+      address: '77 Anna Salai',
+      area: 'West End',
+      default_morning_qty: 2.5,
+      default_evening_qty: 2.5,
+      rate: 62.0,
+      start_date: '2026-03-10',
+      status: 'active',
+      created_at: '2026-03-10T06:00:00.000Z',
+      updated_at: '2026-03-10T06:00:00.000Z',
     },
   ];
 
-  // Local fallback storage for Deliveries (Phase 3)
+  // Local fallback storage for deliveries (Phase 3)
   private fallbackDeliveries: Delivery[] = [];
 
-  // Local fallback storage for Payments & Advance Ledger (Phase 5)
-  private fallbackPayments: PaymentRecord[] = [];
+  // Local fallback storage for sales (Phase 4)
+  private fallbackSales: Sale[] = [];
+
+  // Local fallback storage for payments & advance ledger (Phase 5)
+  private fallbackPayments: Payment[] = [];
   private fallbackAdvanceLedger: AdvanceLedgerEntry[] = [];
 
   constructor() {
@@ -194,20 +140,6 @@ class TiDBService {
 
   private createPool() {
     try {
-      const databaseUrl = process.env.DATABASE_URL;
-
-      if (databaseUrl) {
-        console.log('[TiDB] Initializing connection pool from DATABASE_URL...');
-        this.pool = mysql.createPool({
-          uri: databaseUrl,
-          waitForConnections: true,
-          connectionLimit: 10,
-          queueLimit: 0,
-          ssl: process.env.DB_SSL === 'false' ? undefined : { minVersion: 'TLSv1.2', rejectUnauthorized: true },
-        });
-        return;
-      }
-
       const host = process.env.DB_HOST || '127.0.0.1';
       const port = Number(process.env.DB_PORT) || 4000;
       const user = process.env.DB_USER || 'root';
@@ -224,195 +156,199 @@ class TiDBService {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
+        connectTimeout: 5000,
         ssl: useSSL ? { minVersion: 'TLSv1.2', rejectUnauthorized: true } : undefined,
       };
 
-      console.log(`[TiDB] Initializing connection pool to ${user}@${host}:${port}/${database} (SSL: ${useSSL})...`);
       this.pool = mysql.createPool(config);
     } catch (err: any) {
-      console.warn('[TiDB] Failed to construct connection pool:', err.message);
       this.pool = null;
+      this.connectionError = err.message || 'Failed to construct TiDB pool';
     }
   }
 
   /**
    * Initialize TiDB database:
-   * 1. Check connection
-   * 2. Create users, collection_centers, and customers tables
-   * 3. Seed initial owner, centers, and suppliers if empty
+   * 1. Ping connection
+   * 2. Ensure `users` table exists and seed owner
+   * 3. Ensure `customers` table exists (Phase 2) and seed initial customers
    */
   public async initDatabase(): Promise<boolean> {
     if (!this.pool) {
       this.isConnected = false;
-      this.connectionError = 'Database pool not initialized';
+      this.connectionError = 'TiDB connection pool not created';
       return false;
     }
 
     try {
-      const connection = await this.pool.getConnection();
-      console.log('[TiDB] Connection established successfully.');
+      const conn = await this.pool.getConnection();
+      this.isConnected = true;
+      this.connectionError = null;
 
-      // 1. Users table (Phase 1)
-      await connection.query(`
+      // 1. Create `users` table if not exists (Phase 1)
+      await conn.query(`
         CREATE TABLE IF NOT EXISTS users (
           id VARCHAR(64) PRIMARY KEY,
           email VARCHAR(255) NOT NULL UNIQUE,
           password_hash VARCHAR(255) NOT NULL,
-          status VARCHAR(32) NOT NULL DEFAULT 'active',
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          status ENUM('active', 'inactive') DEFAULT 'active',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         );
       `);
 
-      // 2. Collection Centers table (Phase 2)
-      await connection.query(`
-        CREATE TABLE IF NOT EXISTS collection_centers (
-          id VARCHAR(64) PRIMARY KEY,
-          center_name VARCHAR(255) NOT NULL,
-          location VARCHAR(255) NOT NULL,
-          status VARCHAR(32) NOT NULL DEFAULT 'active',
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        );
-      `);
+      // 2. Check if any user exists, seed default owner if empty
+      const [userRows]: [any[], any] = await conn.query('SELECT COUNT(*) as count FROM users');
+      const userCount = Number(userRows[0]?.count || 0);
 
-      // 3. Customers / Milk Suppliers table (Phase 2)
-      await connection.query(`
+      if (userCount === 0) {
+        const defaultEmail = (process.env.DEFAULT_OWNER_EMAIL || 'milkhub@admin.com').trim().toLowerCase();
+        const defaultPassword = process.env.DEFAULT_OWNER_PASSWORD || 'Admin@123';
+        const defaultHash = hashPassword(defaultPassword);
+
+        await conn.query(
+          'INSERT INTO users (id, email, password_hash, status) VALUES (?, ?, ?, ?)',
+          ['u_owner_001', defaultEmail, defaultHash, 'active']
+        );
+        console.log(`[TiDB] Seeded initial owner (${defaultEmail}) into users table.`);
+      }
+
+      // 3. Create `customers` table if not exists (Phase 2)
+      await conn.query(`
         CREATE TABLE IF NOT EXISTS customers (
           id VARCHAR(64) PRIMARY KEY,
-          customer_code VARCHAR(32) NOT NULL UNIQUE,
           name VARCHAR(255) NOT NULL,
-          phone VARCHAR(32) NOT NULL,
-          address TEXT,
-          area VARCHAR(255) NOT NULL,
-          center_id VARCHAR(64) NOT NULL,
-          cow_count INT NOT NULL DEFAULT 0,
-          buffalo_count INT NOT NULL DEFAULT 0,
-          default_morning_qty DECIMAL(8,2) NOT NULL DEFAULT 1.0,
-          default_evening_qty DECIMAL(8,2) NOT NULL DEFAULT 1.0,
-          rate DECIMAL(8,2) NOT NULL DEFAULT 60.00,
+          phone VARCHAR(20) NOT NULL,
+          address TEXT NOT NULL,
+          area VARCHAR(100) NOT NULL,
+          default_morning_qty DECIMAL(6, 2) NOT NULL DEFAULT 0.00,
+          default_evening_qty DECIMAL(6, 2) NOT NULL DEFAULT 0.00,
+          rate DECIMAL(8, 2) NOT NULL DEFAULT 0.00,
           start_date DATE NOT NULL,
-          status VARCHAR(32) NOT NULL DEFAULT 'active',
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          CONSTRAINT fk_customer_center FOREIGN KEY (center_id) REFERENCES collection_centers(id) ON UPDATE CASCADE
+          status ENUM('active', 'inactive') DEFAULT 'active',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         );
       `);
 
-      // 4. Deliveries table (Phase 3)
-      await connection.query(`
+      // 4. Check if customers table is empty, seed initial customers
+      const [custRows]: [any[], any] = await conn.query('SELECT COUNT(*) as count FROM customers');
+      const custCount = Number(custRows[0]?.count || 0);
+
+      if (custCount === 0) {
+        for (const c of this.fallbackCustomers) {
+          await conn.query(
+            `INSERT INTO customers (id, name, phone, address, area, default_morning_qty, default_evening_qty, rate, start_date, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              c.id,
+              c.name,
+              c.phone,
+              c.address,
+              c.area,
+              c.default_morning_qty,
+              c.default_evening_qty,
+              c.rate,
+              c.start_date,
+              c.status,
+            ]
+          );
+        }
+        console.log(`[TiDB] Seeded ${this.fallbackCustomers.length} initial customers into customers table.`);
+      }
+
+      // 5. Create `deliveries` table if not exists (Phase 3)
+      await conn.query(`
         CREATE TABLE IF NOT EXISTS deliveries (
           id VARCHAR(64) PRIMARY KEY,
           customer_id VARCHAR(64) NOT NULL,
-          center_id VARCHAR(64) NOT NULL,
           date DATE NOT NULL,
-          session ENUM('MORNING', 'EVENING') NOT NULL,
-          actual_qty DECIMAL(8,2) NOT NULL DEFAULT 0.0,
-          status ENUM('DELIVERED', 'NO_MILK') NOT NULL DEFAULT 'DELIVERED',
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          UNIQUE KEY uq_customer_date_session (customer_id, date, session),
-          CONSTRAINT fk_delivery_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
-          CONSTRAINT fk_delivery_center FOREIGN KEY (center_id) REFERENCES collection_centers(id) ON DELETE CASCADE
+          session ENUM('morning', 'evening') NOT NULL,
+          actual_qty DECIMAL(6, 2) NOT NULL DEFAULT 0.00,
+          status ENUM('delivered', 'no_milk') NOT NULL DEFAULT 'delivered',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY unique_customer_date_session (customer_id, date, session),
+          INDEX idx_date_session (date, session),
+          INDEX idx_customer (customer_id)
         );
       `);
 
-      // 5. Payments table (Phase 5)
-      await connection.query(`
+      // 6. Create `sales` table if not exists (Phase 4)
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS sales (
+          id VARCHAR(64) PRIMARY KEY,
+          customer_id VARCHAR(64) NOT NULL,
+          date DATE NOT NULL,
+          morning_qty DECIMAL(6, 2) NOT NULL DEFAULT 0.00,
+          evening_qty DECIMAL(6, 2) NOT NULL DEFAULT 0.00,
+          total_litres DECIMAL(6, 2) NOT NULL DEFAULT 0.00,
+          rate DECIMAL(8, 2) NOT NULL DEFAULT 0.00,
+          sale_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY unique_customer_date_sales (customer_id, date),
+          INDEX idx_sales_date (date),
+          INDEX idx_sales_customer (customer_id)
+        );
+      `);
+
+      // 7. Create `payments` table if not exists (Phase 5)
+      await conn.query(`
         CREATE TABLE IF NOT EXISTS payments (
           id VARCHAR(64) PRIMARY KEY,
           customer_id VARCHAR(64) NOT NULL,
           date DATE NOT NULL,
-          amount DECIMAL(10,2) NOT NULL,
-          payment_type ENUM('DAILY_PAYMENT', 'ADVANCE') NOT NULL,
-          payment_mode ENUM('CASH', 'UPI', 'BANK_TRANSFER') NOT NULL DEFAULT 'CASH',
-          reference_id VARCHAR(128),
-          notes TEXT,
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT fk_payment_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+          amount DECIMAL(10, 2) NOT NULL,
+          payment_type ENUM('daily', 'advance') NOT NULL,
+          payment_mode VARCHAR(50) NOT NULL DEFAULT 'cash',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_payments_customer (customer_id),
+          INDEX idx_payments_date (date),
+          INDEX idx_payments_type (payment_type)
         );
       `);
 
-      // 6. Advance Ledger table (Phase 5)
-      await connection.query(`
+      // 8. Create `advance_ledger` table if not exists (Phase 5)
+      await conn.query(`
         CREATE TABLE IF NOT EXISTS advance_ledger (
           id VARCHAR(64) PRIMARY KEY,
           customer_id VARCHAR(64) NOT NULL,
           date DATE NOT NULL,
-          type ENUM('ADVANCE_ADDED', 'ADVANCE_USED') NOT NULL,
-          amount DECIMAL(10,2) NOT NULL,
-          reference_id VARCHAR(128),
-          notes TEXT,
-          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT fk_advance_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+          type ENUM('credit', 'adjustment') NOT NULL,
+          amount DECIMAL(10, 2) NOT NULL,
+          reference_id VARCHAR(64) NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_advance_customer (customer_id),
+          INDEX idx_advance_date (date),
+          INDEX idx_advance_type (type),
+          INDEX idx_advance_ref (reference_id)
         );
       `);
 
-      // Seed or update default owner
-      const defaultEmail = (process.env.DEFAULT_OWNER_EMAIL || 'milkhub@admin.com').toLowerCase();
-      const defaultPassword = process.env.DEFAULT_OWNER_PASSWORD || 'Admin@123';
-      const defaultHash = hashPassword(defaultPassword);
-
-      const [userRows]: any = await connection.query('SELECT id FROM users WHERE LOWER(email) = ? OR id = ? OR LOWER(email) = ?', [defaultEmail, 'u_admin_001', 'admin@milkhub.com']);
-      if (!userRows || userRows.length === 0) {
-        await connection.query(
-          `INSERT INTO users (id, email, password_hash, status, created_at, updated_at) 
-           VALUES (?, ?, ?, 'active', NOW(), NOW())`,
-          ['u_admin_001', defaultEmail, defaultHash]
-        );
-        console.log(`[TiDB] Default Owner seeded: ${defaultEmail}`);
-      } else {
-        await connection.query(
-          'UPDATE users SET email = ?, password_hash = ?, status = ? WHERE id = ?',
-          [defaultEmail, defaultHash, 'active', userRows[0].id]
-        );
-        console.log(`[TiDB] Owner user synchronized: ${defaultEmail}`);
-      }
-
-      // Seed default centers if empty
-      const [centerRows]: any = await connection.query('SELECT COUNT(*) as count FROM collection_centers');
-      if ((centerRows[0]?.count || 0) === 0) {
-        await connection.query(`
-          INSERT INTO collection_centers (id, center_name, location, status, created_at, updated_at) VALUES 
-          ('c1', 'Srivilliputtur Center', 'Madurai Road, Srivilliputtur', 'active', NOW(), NOW()),
-          ('c2', 'RJPLM Center', 'Tenkasi Highway, Rajapalayam', 'active', NOW(), NOW())
-        `);
-        console.log('[TiDB] Default Collection Centers seeded: Srivilliputtur Center, RJPLM Center');
-      }
-
-      // Seed default suppliers if empty
-      const [custRows]: any = await connection.query('SELECT COUNT(*) as count FROM customers');
-      if ((custRows[0]?.count || 0) === 0) {
-        await connection.query(`
-          INSERT INTO customers (id, customer_code, name, phone, address, area, center_id, cow_count, buffalo_count, default_morning_qty, default_evening_qty, rate, start_date, status, created_at, updated_at) VALUES 
-          ('cust_1', 'SUP001', 'Ramesh', '9876543210', '14 Tenkasi Main Road', 'Srivilliputtur', 'c1', 2, 1, 1.0, 1.0, 60.00, '2026-01-01', 'active', NOW(), NOW()),
-          ('cust_2', 'SUP002', 'Murugan', '9876543211', '22 Station Road', 'Rajapalayam', 'c2', 3, 0, 1.5, 1.0, 60.00, '2026-01-15', 'active', NOW(), NOW())
-        `);
-        console.log('[TiDB] Default Customers/Suppliers seeded: SUP001 (Ramesh), SUP002 (Murugan)');
-      }
-
-      connection.release();
-      this.isConnected = true;
-      this.connectionError = null;
+      conn.release();
+      this.isInitialized = true;
+      console.log('[TiDB] Database connection verified, all tables (users, customers, deliveries, sales, payments, advance_ledger) ready.');
       return true;
     } catch (err: any) {
       this.isConnected = false;
-      this.connectionError = err.message || 'Failed to connect to TiDB';
-      console.warn(`[TiDB] Unable to connect: ${this.connectionError}. Operating in synchronized fallback mode.`);
+      this.connectionError = err.message || 'Connection failed';
+      console.warn(`[TiDB] Connection notice: ${this.connectionError}. Using local fallback mode.`);
       return false;
     }
   }
 
-  // ==========================================
-  // USERS REPOSITORY (Phase 1)
-  // ==========================================
-
-  public async findUserByEmail(email: string): Promise<TiDBUser | null> {
+  /**
+   * Find a user by email
+   */
+  public async findUserByEmail(email: string): Promise<User | null> {
     const cleanEmail = email.trim().toLowerCase();
 
     if (this.isConnected && this.pool) {
       try {
-        const [rows]: any = await this.pool.query(
+        const [rows]: [any[], any] = await this.pool.query(
           'SELECT id, email, password_hash, status, created_at, updated_at FROM users WHERE LOWER(email) = ? LIMIT 1',
           [cleanEmail]
         );
@@ -423,26 +359,27 @@ class TiDBService {
             email: r.email,
             password_hash: r.password_hash,
             status: r.status,
-            created_at: new Date(r.created_at).toISOString(),
-            updated_at: new Date(r.updated_at).toISOString(),
+            created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+            updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
           };
         }
         return null;
-      } catch (err) {
-        console.error('[TiDB] Error querying user by email:', err);
+      } catch (err: any) {
+        console.error('[TiDB] findUserByEmail query error:', err.message);
       }
     }
 
-    const found = this.fallbackUsers.find(
-      (u) => u.email.toLowerCase() === cleanEmail
-    );
+    const found = this.fallbackUsers.find((u) => u.email.toLowerCase() === cleanEmail);
     return found || null;
   }
 
-  public async findUserById(id: string): Promise<TiDBUser | null> {
+  /**
+   * Find a user by ID
+   */
+  public async findUserById(id: string): Promise<User | null> {
     if (this.isConnected && this.pool) {
       try {
-        const [rows]: any = await this.pool.query(
+        const [rows]: [any[], any] = await this.pool.query(
           'SELECT id, email, password_hash, status, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
           [id]
         );
@@ -453,486 +390,142 @@ class TiDBService {
             email: r.email,
             password_hash: r.password_hash,
             status: r.status,
-            created_at: new Date(r.created_at).toISOString(),
-            updated_at: new Date(r.updated_at).toISOString(),
+            created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+            updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
           };
         }
         return null;
-      } catch (err) {
-        console.error('[TiDB] Error querying user by ID:', err);
+      } catch (err: any) {
+        console.error('[TiDB] findUserById query error:', err.message);
       }
     }
 
-    return this.fallbackUsers.find((u) => u.id === id) || null;
-  }
-
-  public async touchUserLogin(id: string): Promise<void> {
-    if (this.isConnected && this.pool) {
-      try {
-        await this.pool.query('UPDATE users SET updated_at = NOW() WHERE id = ?', [id]);
-        return;
-      } catch (err) {
-        console.error('[TiDB] Error updating user timestamp:', err);
-      }
-    }
-
-    const u = this.fallbackUsers.find((u) => u.id === id);
-    if (u) {
-      u.updated_at = new Date().toISOString();
-    }
+    const found = this.fallbackUsers.find((u) => u.id === id);
+    return found || null;
   }
 
   // ==========================================
-  // COLLECTION CENTERS REPOSITORY (Phase 2)
+  // PHASE 2: CUSTOMER CRUD OPERATIONS
   // ==========================================
 
-  public async getCenters(): Promise<CollectionCenter[]> {
-    if (this.isConnected && this.pool) {
-      try {
-        const [rows]: any = await this.pool.query(`
-          SELECT c.id, c.center_name, c.location, c.status, c.created_at, c.updated_at,
-                 COUNT(cust.id) AS supplier_count
-          FROM collection_centers c
-          LEFT JOIN customers cust ON cust.center_id = c.id
-          GROUP BY c.id, c.center_name, c.location, c.status, c.created_at, c.updated_at
-          ORDER BY c.created_at ASC
-        `);
-
-        return rows.map((r: any) => ({
-          id: r.id,
-          center_name: r.center_name,
-          name: r.center_name,
-          location: r.location,
-          status: r.status,
-          is_active: r.status === 'active',
-          supplier_count: Number(r.supplier_count || 0),
-          created_at: new Date(r.created_at).toISOString(),
-          updated_at: new Date(r.updated_at).toISOString(),
-        }));
-      } catch (err) {
-        console.error('[TiDB] Error fetching collection centers:', err);
-      }
-    }
-
-    // Fallback mode
-    return this.fallbackCenters.map((c) => {
-      const count = this.fallbackCustomers.filter((cust) => cust.center_id === c.id || cust.collection_center_id === c.id).length;
-      return {
-        ...c,
-        supplier_count: count,
-      };
-    });
-  }
-
-  public async getCenterById(id: string): Promise<CollectionCenter | null> {
-    if (this.isConnected && this.pool) {
-      try {
-        const [rows]: any = await this.pool.query(
-          `SELECT c.id, c.center_name, c.location, c.status, c.created_at, c.updated_at,
-                  COUNT(cust.id) AS supplier_count
-           FROM collection_centers c
-           LEFT JOIN customers cust ON cust.center_id = c.id
-           WHERE c.id = ?
-           GROUP BY c.id, c.center_name, c.location, c.status, c.created_at, c.updated_at`,
-          [id]
-        );
-        if (rows && rows.length > 0) {
-          const r = rows[0];
-          return {
-            id: r.id,
-            center_name: r.center_name,
-            name: r.center_name,
-            location: r.location,
-            status: r.status,
-            is_active: r.status === 'active',
-            supplier_count: Number(r.supplier_count || 0),
-            created_at: new Date(r.created_at).toISOString(),
-            updated_at: new Date(r.updated_at).toISOString(),
-          };
-        }
-        return null;
-      } catch (err) {
-        console.error('[TiDB] Error fetching center by ID:', err);
-      }
-    }
-
-    const c = this.fallbackCenters.find((item) => item.id === id);
-    if (!c) return null;
-    const count = this.fallbackCustomers.filter((cust) => cust.center_id === c.id || cust.collection_center_id === c.id).length;
-    return { ...c, supplier_count: count };
-  }
-
-  public async createCenter(data: { center_name: string; location: string; status?: 'active' | 'inactive'; code?: string; phone?: string }): Promise<CollectionCenter> {
-    const id = `c_${Date.now()}`;
-    const center_name = data.center_name.trim();
-    const location = data.location.trim();
-    const status = data.status || 'active';
-    const now = new Date().toISOString();
-
-    const newCenter: CollectionCenter = {
-      id,
-      center_name,
-      name: center_name,
-      location,
-      status,
-      is_active: status === 'active',
-      code: data.code || `C${Date.now().toString().slice(-3)}`,
-      phone: data.phone || '',
-      supplier_count: 0,
-      created_at: now,
-      updated_at: now,
-    };
+  /**
+   * List customers with search (name, phone, area) and status filter (active, inactive)
+   */
+  public async getCustomers(query?: CustomerQueryParams): Promise<Customer[]> {
+    const search = query?.search?.trim();
+    const status = query?.status;
 
     if (this.isConnected && this.pool) {
       try {
-        await this.pool.query(
-          `INSERT INTO collection_centers (id, center_name, location, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, NOW(), NOW())`,
-          [id, center_name, location, status]
-        );
-        return newCenter;
-      } catch (err) {
-        console.error('[TiDB] Error creating center:', err);
-      }
-    }
+        let sql = 'SELECT * FROM customers WHERE 1=1';
+        const params: any[] = [];
 
-    this.fallbackCenters.push(newCenter);
-    return newCenter;
-  }
-
-  public async updateCenter(id: string, updates: Partial<CollectionCenter>): Promise<CollectionCenter | null> {
-    const now = new Date().toISOString();
-
-    if (this.isConnected && this.pool) {
-      try {
-        const fields: string[] = [];
-        const values: any[] = [];
-
-        if (updates.center_name !== undefined || updates.name !== undefined) {
-          fields.push('center_name = ?');
-          values.push(updates.center_name || updates.name);
-        }
-        if (updates.location !== undefined) {
-          fields.push('location = ?');
-          values.push(updates.location);
-        }
-        if (updates.status !== undefined) {
-          fields.push('status = ?');
-          values.push(updates.status);
-        } else if (updates.is_active !== undefined) {
-          fields.push('status = ?');
-          values.push(updates.is_active ? 'active' : 'inactive');
-        }
-
-        if (fields.length > 0) {
-          fields.push('updated_at = NOW()');
-          values.push(id);
-          await this.pool.query(
-            `UPDATE collection_centers SET ${fields.join(', ')} WHERE id = ?`,
-            values
-          );
-        }
-        return await this.getCenterById(id);
-      } catch (err) {
-        console.error('[TiDB] Error updating center:', err);
-      }
-    }
-
-    const idx = this.fallbackCenters.findIndex((c) => c.id === id);
-    if (idx === -1) return null;
-
-    const current = this.fallbackCenters[idx];
-    const center_name = updates.center_name || updates.name || current.center_name;
-    const status = updates.status || (updates.is_active !== undefined ? (updates.is_active ? 'active' : 'inactive') : current.status);
-
-    this.fallbackCenters[idx] = {
-      ...current,
-      ...updates,
-      center_name,
-      name: center_name,
-      status,
-      is_active: status === 'active',
-      updated_at: now,
-    };
-
-    return this.fallbackCenters[idx];
-  }
-
-  // ==========================================
-  // CUSTOMERS / MILK SUPPLIERS REPOSITORY (Phase 2)
-  // ==========================================
-
-  public async getCustomers(filters?: {
-    search?: string;
-    center_id?: string;
-    status?: string;
-    area?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<{ customers: Customer[]; total: number }> {
-    const search = filters?.search?.trim().toLowerCase();
-    const center_id = filters?.center_id && filters.center_id !== 'all' ? filters.center_id : undefined;
-    const status = filters?.status && filters.status !== 'all' ? filters.status.toLowerCase() : undefined;
-    const area = filters?.area && filters.area !== 'all' ? filters.area.trim().toLowerCase() : undefined;
-
-    if (this.isConnected && this.pool) {
-      try {
-        let whereClauses: string[] = [];
-        let params: any[] = [];
-
-        if (search) {
-          whereClauses.push('(LOWER(cust.name) LIKE ? OR cust.phone LIKE ? OR LOWER(cust.customer_code) LIKE ? OR LOWER(cust.area) LIKE ?)');
-          const sParam = `%${search}%`;
-          params.push(sParam, sParam, sParam, sParam);
-        }
-
-        if (center_id) {
-          whereClauses.push('cust.center_id = ?');
-          params.push(center_id);
-        }
-
-        if (status) {
-          whereClauses.push('LOWER(cust.status) = ?');
+        if (status && (status === 'active' || status === 'inactive')) {
+          sql += ' AND status = ?';
           params.push(status);
         }
 
-        if (area) {
-          whereClauses.push('LOWER(cust.area) = ?');
-          params.push(area);
+        if (search) {
+          sql += ' AND (name LIKE ? OR phone LIKE ? OR area LIKE ?)';
+          const searchPattern = `%${search}%`;
+          params.push(searchPattern, searchPattern, searchPattern);
         }
 
-        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+        sql += ' ORDER BY created_at DESC, name ASC';
 
-        // Count query
-        const [countRows]: any = await this.pool.query(
-          `SELECT COUNT(*) as total FROM customers cust ${whereSQL}`,
-          params
-        );
-        const total = countRows[0]?.total || 0;
-
-        // Fetch query with joined center
-        const querySQL = `
-          SELECT cust.id, cust.customer_code, cust.name, cust.phone, cust.address, cust.area,
-                 cust.center_id, c.center_name, cust.cow_count, cust.buffalo_count,
-                 cust.default_morning_qty, cust.default_evening_qty, cust.rate, cust.start_date,
-                 cust.status, cust.created_at, cust.updated_at
-          FROM customers cust
-          LEFT JOIN collection_centers c ON c.id = cust.center_id
-          ${whereSQL}
-          ORDER BY cust.created_at DESC
-        `;
-
-        const [rows]: any = await this.pool.query(querySQL, params);
-
-        const customers: Customer[] = rows.map((r: any) => ({
-          id: r.id,
-          customer_code: r.customer_code,
-          name: r.name,
-          phone: r.phone,
-          mobile: r.phone,
-          address: r.address || '',
-          area: r.area,
-          village: r.area,
-          center_id: r.center_id,
-          collection_center_id: r.center_id,
-          center_name: r.center_name || 'All Centers',
-          cow_count: Number(r.cow_count || 0),
-          buffalo_count: Number(r.buffalo_count || 0),
-          default_morning_qty: Number(r.default_morning_qty || 1.0),
-          default_evening_qty: Number(r.default_evening_qty || 1.0),
-          rate: Number(r.rate || 60.0),
-          start_date: typeof r.start_date === 'string' ? r.start_date : new Date(r.start_date).toISOString().split('T')[0],
-          status: r.status,
-          created_at: new Date(r.created_at).toISOString(),
-          updated_at: new Date(r.updated_at).toISOString(),
-        }));
-
-        return { customers, total };
-      } catch (err) {
-        console.error('[TiDB] Error querying customers:', err);
+        const [rows]: [any[], any] = await this.pool.query(sql, params);
+        return rows.map((r) => this.mapRowToCustomer(r));
+      } catch (err: any) {
+        console.error('[TiDB] getCustomers error:', err.message);
       }
     }
 
-    // Fallback in-memory filter
-    let list = [...this.fallbackCustomers];
+    // Fallback in-memory search & filter
+    let result = [...this.fallbackCustomers];
+
+    if (status && (status === 'active' || status === 'inactive')) {
+      result = result.filter((c) => c.status === status);
+    }
 
     if (search) {
-      list = list.filter(
+      const q = search.toLowerCase();
+      result = result.filter(
         (c) =>
-          c.name.toLowerCase().includes(search) ||
-          (c.phone && c.phone.includes(search)) ||
-          (c.mobile && c.mobile.includes(search)) ||
-          c.customer_code.toLowerCase().includes(search) ||
-          (c.area && c.area.toLowerCase().includes(search)) ||
-          (c.village && c.village.toLowerCase().includes(search))
+          c.name.toLowerCase().includes(q) ||
+          c.phone.toLowerCase().includes(q) ||
+          c.area.toLowerCase().includes(q)
       );
     }
 
-    if (center_id) {
-      list = list.filter((c) => c.center_id === center_id || c.collection_center_id === center_id);
-    }
-
-    if (status) {
-      list = list.filter((c) => c.status.toLowerCase() === status);
-    }
-
-    if (area) {
-      list = list.filter((c) => (c.area && c.area.toLowerCase() === area) || (c.village && c.village.toLowerCase() === area));
-    }
-
-    return {
-      customers: list,
-      total: list.length,
-    };
+    return result;
   }
 
+  /**
+   * Get single customer by ID
+   */
   public async getCustomerById(id: string): Promise<Customer | null> {
     if (this.isConnected && this.pool) {
       try {
-        const [rows]: any = await this.pool.query(
-          `SELECT cust.id, cust.customer_code, cust.name, cust.phone, cust.address, cust.area,
-                  cust.center_id, c.center_name, cust.cow_count, cust.buffalo_count,
-                  cust.default_morning_qty, cust.default_evening_qty, cust.rate, cust.start_date,
-                  cust.status, cust.created_at, cust.updated_at
-           FROM customers cust
-           LEFT JOIN collection_centers c ON c.id = cust.center_id
-           WHERE cust.id = ? LIMIT 1`,
+        const [rows]: [any[], any] = await this.pool.query(
+          'SELECT * FROM customers WHERE id = ? LIMIT 1',
           [id]
         );
         if (rows && rows.length > 0) {
-          const r = rows[0];
-          return {
-            id: r.id,
-            customer_code: r.customer_code,
-            name: r.name,
-            phone: r.phone,
-            mobile: r.phone,
-            address: r.address || '',
-            area: r.area,
-            village: r.area,
-            center_id: r.center_id,
-            collection_center_id: r.center_id,
-            center_name: r.center_name || 'All Centers',
-            cow_count: Number(r.cow_count || 0),
-            buffalo_count: Number(r.buffalo_count || 0),
-            default_morning_qty: Number(r.default_morning_qty || 1.0),
-            default_evening_qty: Number(r.default_evening_qty || 1.0),
-            rate: Number(r.rate || 60.0),
-            start_date: typeof r.start_date === 'string' ? r.start_date : new Date(r.start_date).toISOString().split('T')[0],
-            status: r.status,
-            created_at: new Date(r.created_at).toISOString(),
-            updated_at: new Date(r.updated_at).toISOString(),
-          };
+          return this.mapRowToCustomer(rows[0]);
         }
         return null;
-      } catch (err) {
-        console.error('[TiDB] Error fetching customer by ID:', err);
+      } catch (err: any) {
+        console.error('[TiDB] getCustomerById error:', err.message);
       }
     }
 
     const found = this.fallbackCustomers.find((c) => c.id === id);
-    if (!found) return null;
-
-    const center = this.fallbackCenters.find((c) => c.id === found.center_id || c.id === found.collection_center_id);
-    return {
-      ...found,
-      center_name: center?.center_name || center?.name || 'All Centers',
-    };
+    return found || null;
   }
 
-  public async createCustomer(data: {
-    customer_code?: string;
-    name: string;
-    phone?: string;
-    mobile?: string;
-    address?: string;
-    area?: string;
-    village?: string;
-    center_id?: string;
-    collection_center_id?: string;
-    cow_count?: number;
-    buffalo_count?: number;
-    default_morning_qty?: number;
-    default_evening_qty?: number;
-    rate?: number;
-    start_date?: string;
-    status?: 'active' | 'inactive';
-    notes?: string;
-  }): Promise<Customer> {
-    const id = `cust_${Date.now()}`;
-    const name = data.name.trim();
-    const phone = (data.phone || data.mobile || '').trim();
-    const address = data.address?.trim() || '';
-    const area = (data.area || data.village || 'Srivilliputtur').trim();
-    const center_id = data.center_id || data.collection_center_id || 'c1';
-    const cow_count = Number(data.cow_count) || 0;
-    const buffalo_count = Number(data.buffalo_count) || 0;
-    const default_morning_qty = Number(data.default_morning_qty !== undefined ? data.default_morning_qty : 1.0);
-    const default_evening_qty = Number(data.default_evening_qty !== undefined ? data.default_evening_qty : 1.0);
-    const rate = Number(data.rate !== undefined ? data.rate : 60.0);
-    const start_date = data.start_date || new Date().toISOString().split('T')[0];
-    const status = data.status || 'active';
-    const now = new Date().toISOString();
-
-    // Auto-generate customer_code if missing
-    let customer_code = data.customer_code?.trim().toUpperCase();
-    if (!customer_code) {
-      customer_code = `SUP${String(Date.now()).slice(-4)}`;
-    }
-
-    // Resolve center name
-    const center = await this.getCenterById(center_id);
-    const center_name = center?.center_name || center?.name || 'All Centers';
+  /**
+   * Create a new customer
+   */
+  public async createCustomer(data: CreateCustomerDTO): Promise<Customer> {
+    const id = `cust_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const nowIso = new Date().toISOString();
 
     const newCustomer: Customer = {
       id,
-      customer_code,
-      name,
-      phone,
-      mobile: phone,
-      address,
-      area,
-      village: area,
-      center_id,
-      collection_center_id: center_id,
-      center_name,
-      cow_count,
-      buffalo_count,
-      default_morning_qty,
-      default_evening_qty,
-      rate,
-      start_date,
-      status,
-      notes: data.notes || '',
-      created_at: now,
-      updated_at: now,
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      address: data.address.trim(),
+      area: data.area.trim(),
+      default_morning_qty: Number(data.default_morning_qty) || 0,
+      default_evening_qty: Number(data.default_evening_qty) || 0,
+      rate: Number(data.rate) || 0,
+      start_date: data.start_date,
+      status: data.status || 'active',
+      created_at: nowIso,
+      updated_at: nowIso,
     };
 
     if (this.isConnected && this.pool) {
       try {
         await this.pool.query(
-          `INSERT INTO customers (id, customer_code, name, phone, address, area, center_id, cow_count, buffalo_count, default_morning_qty, default_evening_qty, rate, start_date, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          `INSERT INTO customers (id, name, phone, address, area, default_morning_qty, default_evening_qty, rate, start_date, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            id,
-            customer_code,
-            name,
-            phone,
-            address,
-            area,
-            center_id,
-            cow_count,
-            buffalo_count,
-            default_morning_qty,
-            default_evening_qty,
-            rate,
-            start_date,
-            status,
+            newCustomer.id,
+            newCustomer.name,
+            newCustomer.phone,
+            newCustomer.address,
+            newCustomer.area,
+            newCustomer.default_morning_qty,
+            newCustomer.default_evening_qty,
+            newCustomer.rate,
+            newCustomer.start_date,
+            newCustomer.status,
           ]
         );
         return newCustomer;
-      } catch (err) {
-        console.error('[TiDB] Error inserting customer:', err);
+      } catch (err: any) {
+        console.error('[TiDB] createCustomer error:', err.message);
       }
     }
 
@@ -940,1489 +533,1116 @@ class TiDBService {
     return newCustomer;
   }
 
-  public async updateCustomer(id: string, updates: Partial<Customer>): Promise<Customer | null> {
-    const now = new Date().toISOString();
+  /**
+   * Update an existing customer
+   */
+  public async updateCustomer(id: string, data: UpdateCustomerDTO): Promise<Customer | null> {
+    const existing = await this.getCustomerById(id);
+    if (!existing) return null;
+
+    const updated: Customer = {
+      ...existing,
+      name: data.name !== undefined ? data.name.trim() : existing.name,
+      phone: data.phone !== undefined ? data.phone.trim() : existing.phone,
+      address: data.address !== undefined ? data.address.trim() : existing.address,
+      area: data.area !== undefined ? data.area.trim() : existing.area,
+      default_morning_qty:
+        data.default_morning_qty !== undefined
+          ? Number(data.default_morning_qty)
+          : existing.default_morning_qty,
+      default_evening_qty:
+        data.default_evening_qty !== undefined
+          ? Number(data.default_evening_qty)
+          : existing.default_evening_qty,
+      rate: data.rate !== undefined ? Number(data.rate) : existing.rate,
+      start_date: data.start_date !== undefined ? data.start_date : existing.start_date,
+      status: data.status !== undefined ? data.status : existing.status,
+      updated_at: new Date().toISOString(),
+    };
 
     if (this.isConnected && this.pool) {
       try {
-        const fields: string[] = [];
-        const values: any[] = [];
-
-        if (updates.name !== undefined) {
-          fields.push('name = ?');
-          values.push(updates.name.trim());
-        }
-        if (updates.customer_code !== undefined) {
-          fields.push('customer_code = ?');
-          values.push(updates.customer_code.trim().toUpperCase());
-        }
-        if (updates.phone !== undefined || updates.mobile !== undefined) {
-          fields.push('phone = ?');
-          values.push((updates.phone || updates.mobile || '').trim());
-        }
-        if (updates.address !== undefined) {
-          fields.push('address = ?');
-          values.push(updates.address.trim());
-        }
-        if (updates.area !== undefined || updates.village !== undefined) {
-          fields.push('area = ?');
-          values.push((updates.area || updates.village || '').trim());
-        }
-        if (updates.center_id !== undefined || updates.collection_center_id !== undefined) {
-          fields.push('center_id = ?');
-          values.push(updates.center_id || updates.collection_center_id);
-        }
-        if (updates.cow_count !== undefined) {
-          fields.push('cow_count = ?');
-          values.push(Number(updates.cow_count));
-        }
-        if (updates.buffalo_count !== undefined) {
-          fields.push('buffalo_count = ?');
-          values.push(Number(updates.buffalo_count));
-        }
-        if (updates.default_morning_qty !== undefined) {
-          fields.push('default_morning_qty = ?');
-          values.push(Number(updates.default_morning_qty));
-        }
-        if (updates.default_evening_qty !== undefined) {
-          fields.push('default_evening_qty = ?');
-          values.push(Number(updates.default_evening_qty));
-        }
-        if (updates.rate !== undefined) {
-          fields.push('rate = ?');
-          values.push(Number(updates.rate));
-        }
-        if (updates.start_date !== undefined) {
-          fields.push('start_date = ?');
-          values.push(updates.start_date);
-        }
-        if (updates.status !== undefined) {
-          fields.push('status = ?');
-          values.push(updates.status);
-        }
-
-        if (fields.length > 0) {
-          fields.push('updated_at = NOW()');
-          values.push(id);
-          await this.pool.query(
-            `UPDATE customers SET ${fields.join(', ')} WHERE id = ?`,
-            values
-          );
-        }
-        return await this.getCustomerById(id);
-      } catch (err) {
-        console.error('[TiDB] Error updating customer:', err);
+        await this.pool.query(
+          `UPDATE customers
+           SET name = ?, phone = ?, address = ?, area = ?, default_morning_qty = ?, default_evening_qty = ?, rate = ?, start_date = ?, status = ?
+           WHERE id = ?`,
+          [
+            updated.name,
+            updated.phone,
+            updated.address,
+            updated.area,
+            updated.default_morning_qty,
+            updated.default_evening_qty,
+            updated.rate,
+            updated.start_date,
+            updated.status,
+            id,
+          ]
+        );
+        return updated;
+      } catch (err: any) {
+        console.error('[TiDB] updateCustomer error:', err.message);
       }
     }
 
     const idx = this.fallbackCustomers.findIndex((c) => c.id === id);
-    if (idx === -1) return null;
+    if (idx !== -1) {
+      this.fallbackCustomers[idx] = updated;
+    } else {
+      this.fallbackCustomers.unshift(updated);
+    }
+    return updated;
+  }
 
-    const current = this.fallbackCustomers[idx];
-    const phone = updates.phone || updates.mobile || current.phone;
-    const area = updates.area || updates.village || current.area;
-    const center_id = updates.center_id || updates.collection_center_id || current.center_id;
-
-    const center = this.fallbackCenters.find((c) => c.id === center_id);
-
-    this.fallbackCustomers[idx] = {
-      ...current,
-      ...updates,
-      phone,
-      mobile: phone,
-      area,
-      village: area,
-      center_id,
-      collection_center_id: center_id,
-      center_name: center?.center_name || center?.name || current.center_name,
-      updated_at: now,
+  private mapRowToCustomer(r: any): Customer {
+    return {
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      address: r.address,
+      area: r.area,
+      default_morning_qty: parseFloat(r.default_morning_qty) || 0,
+      default_evening_qty: parseFloat(r.default_evening_qty) || 0,
+      rate: parseFloat(r.rate) || 0,
+      start_date: r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date),
+      status: r.status,
+      created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+      updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
     };
-
-    return this.fallbackCustomers[idx];
-  }
-
-  /**
-   * Soft-delete / Deactivate Customer
-   * Preserves historical delivery/sales/payment records!
-   */
-  public async deactivateCustomer(id: string): Promise<boolean> {
-    if (this.isConnected && this.pool) {
-      try {
-        await this.pool.query('UPDATE customers SET status = "inactive", updated_at = NOW() WHERE id = ?', [id]);
-        return true;
-      } catch (err) {
-        console.error('[TiDB] Error deactivating customer:', err);
-        return false;
-      }
-    }
-
-    const customer = this.fallbackCustomers.find((c) => c.id === id);
-    if (customer) {
-      customer.status = 'inactive';
-      customer.updated_at = new Date().toISOString();
-      return true;
-    }
-    return false;
   }
 
   // ==========================================
-  // DELIVERIES REPOSITORY (Phase 3)
+  // PHASE 3: DELIVERY WORKFLOW (MORNING & EVENING)
   // ==========================================
 
   /**
-   * Get deliveries for a date and session (MORNING / EVENING).
-   * Loads all ACTIVE suppliers, showing their saved actual delivery OR pre-filled default quantity!
+   * Get deliveries for a date and session (morning/evening)
+   * 1. Loads active customers
+   * 2. Pre-fills default quantity (morning or evening)
+   * 3. Merges saved deliveries for that date/session if any
+   * 4. Calculates session summary
    */
-  public async getDeliveries(options: {
-    date: string;
-    session: DeliverySession;
-    center_id?: string;
-    search?: string;
-  }): Promise<Delivery[]> {
-    const { date, session, center_id, search } = options;
-    const cleanSearch = search?.trim().toLowerCase();
+  public async getDeliveriesForSession(
+    date: string,
+    rawSession: string
+  ): Promise<DeliveriesListResponse> {
+    const session: DeliverySession = rawSession.toLowerCase().includes('eve')
+      ? 'evening'
+      : 'morning';
 
+    // 1. Get all active customers
+    const activeCustomers = await this.getCustomers({ status: 'active' });
+
+    // 2. Query saved delivery records for date + session
+    let savedRecords: Delivery[] = [];
     if (this.isConnected && this.pool) {
       try {
-        let whereClauses: string[] = ['cust.status = "active"'];
-        let params: any[] = [session, date, session];
-
-        if (center_id && center_id !== 'all') {
-          whereClauses.push('cust.center_id = ?');
-          params.push(center_id);
-        }
-
-        if (cleanSearch) {
-          whereClauses.push('(LOWER(cust.name) LIKE ? OR cust.phone LIKE ? OR LOWER(cust.customer_code) LIKE ? OR LOWER(cust.area) LIKE ?)');
-          const sParam = `%${cleanSearch}%`;
-          params.push(sParam, sParam, sParam, sParam);
-        }
-
-        const querySQL = `
-          SELECT 
-            cust.id AS customer_id,
-            cust.customer_code,
-            cust.name AS customer_name,
-            cust.phone,
-            cust.rate,
-            cust.center_id,
-            c.center_name,
-            CASE WHEN ? = 'MORNING' THEN cust.default_morning_qty ELSE cust.default_evening_qty END AS default_qty,
-            del.id AS id,
-            del.actual_qty,
-            del.status AS delivery_status,
-            del.created_at AS delivery_created_at,
-            del.updated_at AS delivery_updated_at
-          FROM customers cust
-          JOIN collection_centers c ON c.id = cust.center_id
-          LEFT JOIN deliveries del ON del.customer_id = cust.id AND del.date = ? AND del.session = ?
-          WHERE ${whereClauses.join(' AND ')}
-          ORDER BY cust.customer_code ASC;
-        `;
-
-        const [rows]: any = await this.pool.query(querySQL, params);
-
-        return rows.map((r: any) => {
-          const defaultQty = Number(r.default_qty !== undefined ? r.default_qty : 1.0);
-          const hasSaved = r.id !== null && r.id !== undefined;
-          const actualQty = hasSaved ? Number(r.actual_qty) : defaultQty;
-          const status: DeliveryStatus = hasSaved ? r.delivery_status : 'DELIVERED';
-          const rate = Number(r.rate || 60.0);
-
-          return {
-            id: r.id || `temp_${r.customer_id}_${date}_${session}`,
-            customer_id: r.customer_id,
-            customer_name: r.customer_name,
-            customer_code: r.customer_code,
-            phone: r.phone,
-            center_id: r.center_id,
-            center_name: r.center_name,
-            date,
-            session,
-            default_qty: defaultQty,
-            actual_qty: actualQty,
-            status,
-            rate,
-            total_amount: Number((actualQty * rate).toFixed(2)),
-            is_saved: hasSaved,
-            created_at: r.delivery_created_at ? new Date(r.delivery_created_at).toISOString() : new Date().toISOString(),
-            updated_at: r.delivery_updated_at ? new Date(r.delivery_updated_at).toISOString() : new Date().toISOString(),
-          };
-        });
-      } catch (err) {
-        console.error('[TiDB] Error querying deliveries:', err);
+        const [rows]: [any[], any] = await this.pool.query(
+          'SELECT * FROM deliveries WHERE date = ? AND LOWER(session) = ?',
+          [date, session]
+        );
+        savedRecords = rows.map((r) => this.mapRowToDelivery(r));
+      } catch (err: any) {
+        console.error('[TiDB] getDeliveries query error:', err.message);
+        savedRecords = this.fallbackDeliveries.filter(
+          (d) => d.date === date && d.session === session
+        );
       }
-    }
-
-    // Fallback mode
-    const activeCustomers = this.fallbackCustomers.filter((c) => {
-      if (c.status !== 'active') return false;
-      if (center_id && center_id !== 'all' && c.center_id !== center_id && c.collection_center_id !== center_id) {
-        return false;
-      }
-      if (cleanSearch) {
-        const matchesName = c.name.toLowerCase().includes(cleanSearch);
-        const matchesPhone = (c.phone && c.phone.includes(cleanSearch)) || (c.mobile && c.mobile.includes(cleanSearch));
-        const matchesCode = c.customer_code.toLowerCase().includes(cleanSearch);
-        const matchesArea = (c.area && c.area.toLowerCase().includes(cleanSearch)) || (c.village && c.village.toLowerCase().includes(cleanSearch));
-        if (!matchesName && !matchesPhone && !matchesCode && !matchesArea) return false;
-      }
-      return true;
-    });
-
-    return activeCustomers.map((cust) => {
-      const defaultQty = session === 'MORNING'
-        ? Number(cust.default_morning_qty !== undefined ? cust.default_morning_qty : 1.0)
-        : Number(cust.default_evening_qty !== undefined ? cust.default_evening_qty : 1.0);
-
-      const saved = this.fallbackDeliveries.find(
-        (d) => d.customer_id === cust.id && d.date === date && d.session === session
+    } else {
+      savedRecords = this.fallbackDeliveries.filter(
+        (d) => d.date === date && d.session === session
       );
+    }
 
-      const center = this.fallbackCenters.find((c) => c.id === cust.center_id || c.id === cust.collection_center_id);
-      const actualQty = saved ? Number(saved.actual_qty) : defaultQty;
-      const status: DeliveryStatus = saved ? saved.status : 'DELIVERED';
-      const rate = Number(cust.rate || 60.0);
+    // 3. Map active customers with default or saved actual qty
+    let totalQty = 0;
+    let deliveredCount = 0;
+    let noMilkCount = 0;
+
+    const deliveries: DeliveryItemResponse[] = activeCustomers.map((cust) => {
+      const defaultQty =
+        session === 'morning'
+          ? Number(cust.default_morning_qty) || 0
+          : Number(cust.default_evening_qty) || 0;
+
+      const existingRecord = savedRecords.find((r) => r.customer_id === cust.id);
+
+      let actualQty: number;
+      let status: DeliveryStatus;
+      let isSaved = false;
+      let deliveryId: string | undefined = undefined;
+
+      if (existingRecord) {
+        actualQty = Number(existingRecord.actual_qty) || 0;
+        status = existingRecord.status;
+        isSaved = true;
+        deliveryId = existingRecord.id;
+      } else {
+        actualQty = defaultQty;
+        status = defaultQty > 0 ? 'delivered' : 'no_milk';
+        isSaved = false;
+      }
+
+      totalQty += actualQty;
+      if (status === 'delivered') deliveredCount++;
+      else noMilkCount++;
 
       return {
-        id: saved ? saved.id : `temp_${cust.id}_${date}_${session}`,
+        id: deliveryId,
         customer_id: cust.id,
         customer_name: cust.name,
-        customer_code: cust.customer_code,
-        phone: cust.phone || cust.mobile,
-        center_id: cust.center_id || cust.collection_center_id || 'c1',
-        center_name: center?.center_name || center?.name || cust.center_name || 'All Centers',
+        customer_phone: cust.phone,
+        customer_area: cust.area,
+        customer_address: cust.address,
         date,
         session,
         default_qty: defaultQty,
         actual_qty: actualQty,
         status,
-        rate,
-        total_amount: Number((actualQty * rate).toFixed(2)),
-        is_saved: !!saved,
-        created_at: saved?.created_at || new Date().toISOString(),
-        updated_at: saved?.updated_at || new Date().toISOString(),
+        is_saved: isSaved,
+        rate: Number(cust.rate) || 0,
+        created_at: existingRecord?.created_at,
+        updated_at: existingRecord?.updated_at,
       };
     });
+
+    return {
+      deliveries,
+      total: deliveries.length,
+      date,
+      session,
+      summary: {
+        total_qty: Math.round(totalQty * 100) / 100,
+        delivered_count: deliveredCount,
+        no_milk_count: noMilkCount,
+      },
+    };
   }
 
   /**
-   * Save a single delivery record.
-   * If record exists for same (customer_id, date, session), UPDATES it (preventing duplicates).
-   * Customer default quantities are NEVER modified.
+   * Save a single delivery record (Upsert: update if exists, insert if new)
+   * IMPORTANT BUSINESS RULE:
+   * Customer default quantity must NEVER be changed when today's actual quantity is edited.
    */
-  public async saveDelivery(data: {
-    id?: string;
-    customer_id: string;
-    center_id?: string;
-    date: string;
-    session: DeliverySession;
-    actual_qty: number;
-    status: DeliveryStatus;
-  }): Promise<Delivery> {
-    const customer = await this.getCustomerById(data.customer_id);
-    const center_id = data.center_id || customer?.center_id || 'c1';
-    const status: DeliveryStatus = data.status === 'NO_MILK' ? 'NO_MILK' : 'DELIVERED';
-    const actual_qty = status === 'NO_MILK' ? 0.0 : Math.max(0, Number(data.actual_qty) || 0.0);
-    const date = data.date;
-    const session = data.session;
-    const now = new Date().toISOString();
-    const id = data.id && !data.id.startsWith('temp_') ? data.id : `del_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  public async saveDelivery(dto: SaveDeliveryDTO): Promise<Delivery> {
+    const session: DeliverySession = dto.session.toLowerCase().includes('eve')
+      ? 'evening'
+      : 'morning';
+
+    const rawStatus = dto.status.toLowerCase();
+    const status: DeliveryStatus =
+      rawStatus.includes('no') || rawStatus === 'no_milk' ? 'no_milk' : 'delivered';
+
+    // 0L must be supported. If status is no_milk, actual_qty is 0
+    let actualQty = Number(dto.actual_qty);
+    if (isNaN(actualQty) || actualQty < 0 || status === 'no_milk') {
+      actualQty = 0;
+    }
+
+    const nowIso = new Date().toISOString();
+    let resultDelivery: Delivery;
 
     if (this.isConnected && this.pool) {
       try {
-        await this.pool.query(
-          `INSERT INTO deliveries (id, customer_id, center_id, date, session, actual_qty, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-           ON DUPLICATE KEY UPDATE
-             actual_qty = VALUES(actual_qty),
-             status = VALUES(status),
-             center_id = VALUES(center_id),
-             updated_at = NOW()`,
-          [id, data.customer_id, center_id, date, session, actual_qty, status]
-        );
-
-        // Fetch back saved record with center name
-        const [rows]: any = await this.pool.query(
-          `SELECT del.*, cust.name AS customer_name, cust.customer_code, c.center_name, cust.rate,
-                  CASE WHEN del.session = 'MORNING' THEN cust.default_morning_qty ELSE cust.default_evening_qty END AS default_qty
-           FROM deliveries del
-           JOIN customers cust ON cust.id = del.customer_id
-           JOIN collection_centers c ON c.id = del.center_id
-           WHERE del.customer_id = ? AND del.date = ? AND del.session = ? LIMIT 1`,
-          [data.customer_id, date, session]
+        // Check if existing record for customer + date + session
+        const [rows]: [any[], any] = await this.pool.query(
+          'SELECT id FROM deliveries WHERE customer_id = ? AND date = ? AND session = ? LIMIT 1',
+          [dto.customer_id, dto.date, session]
         );
 
         if (rows && rows.length > 0) {
-          const r = rows[0];
-          return {
-            id: r.id,
-            customer_id: r.customer_id,
-            customer_name: r.customer_name,
-            customer_code: r.customer_code,
-            center_id: r.center_id,
-            center_name: r.center_name,
-            date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0],
-            session: r.session,
-            default_qty: Number(r.default_qty || 1.0),
-            actual_qty: Number(r.actual_qty),
-            status: r.status,
-            rate: Number(r.rate || 60.0),
-            total_amount: Number((Number(r.actual_qty) * Number(r.rate || 60.0)).toFixed(2)),
-            is_saved: true,
-            created_at: new Date(r.created_at).toISOString(),
-            updated_at: new Date(r.updated_at).toISOString(),
+          const id = rows[0].id;
+          await this.pool.query(
+            'UPDATE deliveries SET actual_qty = ?, status = ? WHERE id = ?',
+            [actualQty, status, id]
+          );
+          resultDelivery = {
+            id,
+            customer_id: dto.customer_id,
+            date: dto.date,
+            session,
+            actual_qty: actualQty,
+            status,
+            updated_at: nowIso,
+          };
+        } else {
+          const id = `del_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await this.pool.query(
+            'INSERT INTO deliveries (id, customer_id, date, session, actual_qty, status) VALUES (?, ?, ?, ?, ?, ?)',
+            [id, dto.customer_id, dto.date, session, actualQty, status]
+          );
+          resultDelivery = {
+            id,
+            customer_id: dto.customer_id,
+            date: dto.date,
+            session,
+            actual_qty: actualQty,
+            status,
+            created_at: nowIso,
+            updated_at: nowIso,
           };
         }
-      } catch (err) {
-        console.error('[TiDB] Error saving delivery:', err);
+
+        // Automatic sales calculation trigger
+        await this.syncCustomerSaleForDate(dto.customer_id, dto.date);
+        return resultDelivery;
+      } catch (err: any) {
+        console.error('[TiDB] saveDelivery error:', err.message);
       }
     }
 
-    // Fallback in-memory
-    const existingIndex = this.fallbackDeliveries.findIndex(
-      (d) => d.customer_id === data.customer_id && d.date === date && d.session === session
+    // Fallback store
+    const existingIdx = this.fallbackDeliveries.findIndex(
+      (d) => d.customer_id === dto.customer_id && d.date === dto.date && d.session === session
     );
 
-    const savedRecord: Delivery = {
-      id: existingIndex !== -1 ? this.fallbackDeliveries[existingIndex].id : id,
-      customer_id: data.customer_id,
-      customer_name: customer?.name || '',
-      customer_code: customer?.customer_code || '',
-      center_id,
-      center_name: customer?.center_name || 'All Centers',
-      date,
-      session,
-      default_qty: session === 'MORNING'
-        ? Number(customer?.default_morning_qty !== undefined ? customer.default_morning_qty : 1.0)
-        : Number(customer?.default_evening_qty !== undefined ? customer.default_evening_qty : 1.0),
-      actual_qty,
-      status,
-      rate: Number(customer?.rate || 60.0),
-      total_amount: Number((actual_qty * Number(customer?.rate || 60.0)).toFixed(2)),
-      is_saved: true,
-      created_at: existingIndex !== -1 ? this.fallbackDeliveries[existingIndex].created_at : now,
-      updated_at: now,
-    };
-
-    if (existingIndex !== -1) {
-      this.fallbackDeliveries[existingIndex] = savedRecord;
+    if (existingIdx !== -1) {
+      const existing = this.fallbackDeliveries[existingIdx];
+      const updated: Delivery = {
+        ...existing,
+        actual_qty: actualQty,
+        status,
+        updated_at: nowIso,
+      };
+      this.fallbackDeliveries[existingIdx] = updated;
+      resultDelivery = updated;
     } else {
-      this.fallbackDeliveries.push(savedRecord);
+      const id = `del_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const newDelivery: Delivery = {
+        id,
+        customer_id: dto.customer_id,
+        date: dto.date,
+        session,
+        actual_qty: actualQty,
+        status,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+      this.fallbackDeliveries.push(newDelivery);
+      resultDelivery = newDelivery;
     }
 
-    return savedRecord;
+    // Automatic sales calculation trigger in fallback
+    await this.syncCustomerSaleForDate(dto.customer_id, dto.date);
+    return resultDelivery;
   }
 
   /**
-   * Save bulk deliveries for multiple rows in one operation
+   * Bulk save deliveries
    */
-  public async saveBulkDeliveries(deliveries: Array<{
-    id?: string;
-    customer_id: string;
-    center_id?: string;
-    date: string;
-    session: DeliverySession;
-    actual_qty: number;
-    status: DeliveryStatus;
-  }>): Promise<Delivery[]> {
+  public async saveDeliveriesBulk(dtos: SaveDeliveryDTO[]): Promise<Delivery[]> {
     const results: Delivery[] = [];
-    for (const item of deliveries) {
-      const saved = await this.saveDelivery(item);
+    for (const d of dtos) {
+      const saved = await this.saveDelivery(d);
       results.push(saved);
     }
     return results;
   }
 
-  /**
-   * Center-wise Daily Milk Collection Calculations:
-   * Calculates center-wise Morning total, Evening total, and Combined Daily total directly from actual delivery records.
-   */
-  public async getCenterTotals(date: string): Promise<{
-    date: string;
-    centers: Array<{
-      center_id: string;
-      center_name: string;
-      morning_total: number;
-      evening_total: number;
-      daily_total: number;
-    }>;
-    overall: {
-      morning_total: number;
-      evening_total: number;
-      daily_total: number;
-    };
-  }> {
-    if (this.isConnected && this.pool) {
-      try {
-        const querySQL = `
-          SELECT 
-            c.id AS center_id,
-            c.center_name,
-            COALESCE(SUM(CASE WHEN del.session = 'MORNING' AND del.status = 'DELIVERED' THEN del.actual_qty ELSE 0 END), 0) AS morning_total,
-            COALESCE(SUM(CASE WHEN del.session = 'EVENING' AND del.status = 'DELIVERED' THEN del.actual_qty ELSE 0 END), 0) AS evening_total,
-            COALESCE(SUM(CASE WHEN del.status = 'DELIVERED' THEN del.actual_qty ELSE 0 END), 0) AS daily_total
-          FROM collection_centers c
-          LEFT JOIN deliveries del ON del.center_id = c.id AND del.date = ?
-          GROUP BY c.id, c.center_name
-          ORDER BY c.center_name ASC;
-        `;
+  private mapRowToDelivery(r: any): Delivery {
+    const rawSession = String(r.session).toLowerCase();
+    const session: DeliverySession = rawSession.includes('eve') ? 'evening' : 'morning';
 
-        const [rows]: any = await this.pool.query(querySQL, [date]);
-
-        let overallMorning = 0;
-        let overallEvening = 0;
-        let overallDaily = 0;
-
-        const centers = rows.map((r: any) => {
-          const m = Number(r.morning_total || 0);
-          const e = Number(r.evening_total || 0);
-          const d = Number(r.daily_total || 0);
-
-          overallMorning += m;
-          overallEvening += e;
-          overallDaily += d;
-
-          return {
-            center_id: r.center_id,
-            center_name: r.center_name,
-            morning_total: Number(m.toFixed(2)),
-            evening_total: Number(e.toFixed(2)),
-            daily_total: Number(d.toFixed(2)),
-          };
-        });
-
-        return {
-          date,
-          centers,
-          overall: {
-            morning_total: Number(overallMorning.toFixed(2)),
-            evening_total: Number(overallEvening.toFixed(2)),
-            daily_total: Number(overallDaily.toFixed(2)),
-          },
-        };
-      } catch (err) {
-        console.error('[TiDB] Error calculating center totals:', err);
-      }
-    }
-
-    // Fallback mode calculation
-    const allCenters = await this.getCenters();
-    let overallMorning = 0;
-    let overallEvening = 0;
-    let overallDaily = 0;
-
-    const centers = allCenters.map((c) => {
-      const centerDeliveries = this.fallbackDeliveries.filter(
-        (d) => d.center_id === c.id && d.date === date && d.status === 'DELIVERED'
-      );
-
-      const m = centerDeliveries
-        .filter((d) => d.session === 'MORNING')
-        .reduce((sum, d) => sum + Number(d.actual_qty || 0), 0);
-
-      const e = centerDeliveries
-        .filter((d) => d.session === 'EVENING')
-        .reduce((sum, d) => sum + Number(d.actual_qty || 0), 0);
-
-      const d = m + e;
-
-      overallMorning += m;
-      overallEvening += e;
-      overallDaily += d;
-
-      return {
-        center_id: c.id,
-        center_name: c.center_name || c.name || 'Center',
-        morning_total: Number(m.toFixed(2)),
-        evening_total: Number(e.toFixed(2)),
-        daily_total: Number(d.toFixed(2)),
-      };
-    });
+    const rawStatus = String(r.status).toLowerCase();
+    const status: DeliveryStatus = rawStatus.includes('no') ? 'no_milk' : 'delivered';
 
     return {
-      date,
-      centers,
-      overall: {
-        morning_total: Number(overallMorning.toFixed(2)),
-        evening_total: Number(overallEvening.toFixed(2)),
-        daily_total: Number(overallDaily.toFixed(2)),
-      },
+      id: r.id,
+      customer_id: r.customer_id,
+      date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date).split('T')[0],
+      session,
+      actual_qty: parseFloat(r.actual_qty) || 0,
+      status,
+      created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+      updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
     };
   }
 
   // ==========================================
-  // PAYMENTS & ADVANCE REPOSITORY (Phase 5)
+  // PHASE 4: AUTOMATIC SALES CALCULATION
   // ==========================================
 
   /**
-   * Record a payment (DAILY_PAYMENT or ADVANCE).
-   * Automatically updates advance_ledger if payment_type is ADVANCE.
-   * Transactionally safe.
+   * Automatically compute and synchronize daily sale for a customer on a given date.
+   * Business calculation:
+   *   Morning Actual Qty + Evening Actual Qty = Total Litres
+   *   Total Litres × Milk Rate/Litre = Daily Sale
+   * Strict fields: id, customer_id, date, morning_qty, evening_qty, total_litres, rate, sale_amount
    */
-  public async recordPayment(data: {
-    customer_id: string;
-    date?: string;
-    amount: number;
-    payment_type: PaymentType;
-    payment_mode: PaymentMode;
-    reference_id?: string;
-    notes?: string;
-  }): Promise<PaymentRecord> {
-    const id = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const customer_id = data.customer_id;
-    const date = data.date || new Date().toISOString().split('T')[0];
-    const amount = Number(Math.max(0, Number(data.amount) || 0).toFixed(2));
-    const payment_type: PaymentType = data.payment_type === 'ADVANCE' ? 'ADVANCE' : 'DAILY_PAYMENT';
-    const payment_mode: PaymentMode = data.payment_mode || 'CASH';
-    const reference_id = data.reference_id?.trim() || '';
-    const notes = data.notes?.trim() || '';
-    const now = new Date().toISOString();
+  public async syncCustomerSaleForDate(customerId: string, date: string): Promise<Sale> {
+    const customer = await this.getCustomerById(customerId);
+    const rate = customer ? Number(customer.rate) || 0 : 0;
+    const defaultMorning = customer ? Number(customer.default_morning_qty) || 0 : 0;
+    const defaultEvening = customer ? Number(customer.default_evening_qty) || 0 : 0;
 
-    const customer = await this.getCustomerById(customer_id);
+    let morningQty = defaultMorning;
+    let eveningQty = defaultEvening;
 
     if (this.isConnected && this.pool) {
-      const conn = await this.pool.getConnection();
       try {
-        await conn.beginTransaction();
-
-        // 1. Insert into payments
-        await conn.query(
-          `INSERT INTO payments (id, customer_id, date, amount, payment_type, payment_mode, reference_id, notes, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-          [id, customer_id, date, amount, payment_type, payment_mode, reference_id, notes]
+        const [rows]: [any[], any] = await this.pool.query(
+          'SELECT session, actual_qty, status FROM deliveries WHERE customer_id = ? AND date = ?',
+          [customerId, date]
         );
-
-        // 2. If ADVANCE, record into advance_ledger as ADVANCE_ADDED
-        if (payment_type === 'ADVANCE') {
-          const advId = `adv_add_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-          await conn.query(
-            `INSERT INTO advance_ledger (id, customer_id, date, type, amount, reference_id, notes, created_at)
-             VALUES (?, ?, ?, 'ADVANCE_ADDED', ?, ?, ?, NOW())`,
-            [advId, customer_id, date, amount, reference_id || id, notes || `Advance payment received via ${payment_mode}`]
-          );
+        for (const row of rows) {
+          const sess = String(row.session).toLowerCase();
+          const stat = String(row.status).toLowerCase();
+          const qty = stat.includes('no') ? 0 : parseFloat(row.actual_qty) || 0;
+          if (sess.includes('morn')) {
+            morningQty = qty;
+          } else if (sess.includes('eve')) {
+            eveningQty = qty;
+          }
         }
-
-        await conn.commit();
-
-        return {
-          id,
-          customer_id,
-          date,
-          amount,
-          payment_type,
-          payment_mode,
-          reference_id,
-          notes,
-          created_at: now,
-          customer_name: customer?.name || 'Customer',
-          customer_code: customer?.customer_code || '',
-          center_id: customer?.center_id || 'c1',
-          center_name: customer?.center_name || 'All Centers',
-        };
-      } catch (err) {
-        await conn.rollback();
-        console.error('[TiDB] Transaction failed in recordPayment:', err);
-        throw err;
-      } finally {
-        conn.release();
+      } catch (err: any) {
+        console.error('[TiDB] syncCustomerSale query deliveries error:', err.message);
+      }
+    } else {
+      const records = this.fallbackDeliveries.filter(
+        (d) => d.customer_id === customerId && d.date === date
+      );
+      for (const rec of records) {
+        const qty = rec.status === 'no_milk' ? 0 : Number(rec.actual_qty) || 0;
+        if (rec.session === 'morning') morningQty = qty;
+        if (rec.session === 'evening') eveningQty = qty;
       }
     }
 
-    // Fallback mode
-    const newRecord: PaymentRecord = {
-      id,
-      customer_id,
-      date,
-      amount,
-      payment_type,
-      payment_mode,
-      reference_id,
-      notes,
-      created_at: now,
-      customer_name: customer?.name || 'Customer',
-      customer_code: customer?.customer_code || '',
-      center_id: customer?.center_id || 'c1',
-      center_name: customer?.center_name || 'All Centers',
-    };
+    const totalLitres = Math.round((morningQty + eveningQty) * 100) / 100;
+    const saleAmount = Math.round(totalLitres * rate * 100) / 100;
+    const nowIso = new Date().toISOString();
 
-    this.fallbackPayments.unshift(newRecord);
+    if (this.isConnected && this.pool) {
+      try {
+        const [existing]: [any[], any] = await this.pool.query(
+          'SELECT id FROM sales WHERE customer_id = ? AND date = ? LIMIT 1',
+          [customerId, date]
+        );
 
-    if (payment_type === 'ADVANCE') {
-      const advId = `adv_add_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      this.fallbackAdvanceLedger.push({
-        id: advId,
-        customer_id,
-        date,
-        type: 'ADVANCE_ADDED',
-        amount,
-        reference_id: reference_id || id,
-        notes: notes || `Advance payment received via ${payment_mode}`,
-        created_at: now,
-        customer_name: customer?.name,
-        customer_code: customer?.customer_code,
-      });
+        if (existing && existing.length > 0) {
+          const id = existing[0].id;
+          await this.pool.query(
+            `UPDATE sales
+             SET morning_qty = ?, evening_qty = ?, total_litres = ?, rate = ?, sale_amount = ?
+             WHERE id = ?`,
+            [morningQty, eveningQty, totalLitres, rate, saleAmount, id]
+          );
+          return {
+            id,
+            customer_id: customerId,
+            date,
+            morning_qty: morningQty,
+            evening_qty: eveningQty,
+            total_litres: totalLitres,
+            rate,
+            sale_amount: saleAmount,
+            updated_at: nowIso,
+          };
+        } else {
+          const id = `sale_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await this.pool.query(
+            `INSERT INTO sales (id, customer_id, date, morning_qty, evening_qty, total_litres, rate, sale_amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, customerId, date, morningQty, eveningQty, totalLitres, rate, saleAmount]
+          );
+          return {
+            id,
+            customer_id: customerId,
+            date,
+            morning_qty: morningQty,
+            evening_qty: eveningQty,
+            total_litres: totalLitres,
+            rate,
+            sale_amount: saleAmount,
+            created_at: nowIso,
+            updated_at: nowIso,
+          };
+        }
+      } catch (err: any) {
+        console.error('[TiDB] syncCustomerSale error:', err.message);
+      }
     }
 
-    return newRecord;
+    if (this.isConnected && this.pool) {
+      try {
+        const [existing]: [any[], any] = await this.pool.query(
+          'SELECT id FROM sales WHERE customer_id = ? AND date = ? LIMIT 1',
+          [customerId, date]
+        );
+
+        if (existing && existing.length > 0) {
+          const id = existing[0].id;
+          await this.pool.query(
+            `UPDATE sales
+             SET morning_qty = ?, evening_qty = ?, total_litres = ?, rate = ?, sale_amount = ?
+             WHERE id = ?`,
+            [morningQty, eveningQty, totalLitres, rate, saleAmount, id]
+          );
+          await this.processAdvanceAdjustments(customerId);
+          return {
+            id,
+            customer_id: customerId,
+            date,
+            morning_qty: morningQty,
+            evening_qty: eveningQty,
+            total_litres: totalLitres,
+            rate,
+            sale_amount: saleAmount,
+            updated_at: nowIso,
+          };
+        } else {
+          const id = `sale_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await this.pool.query(
+            `INSERT INTO sales (id, customer_id, date, morning_qty, evening_qty, total_litres, rate, sale_amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, customerId, date, morningQty, eveningQty, totalLitres, rate, saleAmount]
+          );
+          await this.processAdvanceAdjustments(customerId);
+          return {
+            id,
+            customer_id: customerId,
+            date,
+            morning_qty: morningQty,
+            evening_qty: eveningQty,
+            total_litres: totalLitres,
+            rate,
+            sale_amount: saleAmount,
+            created_at: nowIso,
+            updated_at: nowIso,
+          };
+        }
+      } catch (err: any) {
+        console.error('[TiDB] syncCustomerSale error:', err.message);
+      }
+    }
+
+    // Fallback store
+    const existingIdx = this.fallbackSales.findIndex(
+      (s) => s.customer_id === customerId && s.date === date
+    );
+
+    if (existingIdx !== -1) {
+      const existing = this.fallbackSales[existingIdx];
+      const updated: Sale = {
+        ...existing,
+        morning_qty: morningQty,
+        evening_qty: eveningQty,
+        total_litres: totalLitres,
+        rate,
+        sale_amount: saleAmount,
+        updated_at: nowIso,
+      };
+      this.fallbackSales[existingIdx] = updated;
+      await this.processAdvanceAdjustments(customerId);
+      return updated;
+    } else {
+      const id = `sale_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const newSale: Sale = {
+        id,
+        customer_id: customerId,
+        date,
+        morning_qty: morningQty,
+        evening_qty: eveningQty,
+        total_litres: totalLitres,
+        rate,
+        sale_amount: saleAmount,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+      this.fallbackSales.push(newSale);
+      await this.processAdvanceAdjustments(customerId);
+      return newSale;
+    }
   }
 
   /**
-   * Get payments list with filters
+   * Phase 5: Automatic Advance Adjustment
+   * Allocates available advance credits in chronological order across the customer's sales.
+   * Owner does NOT manually subtract advance. Backend automatically calculates the adjustment.
+   * Traceable entries are preserved in `advance_ledger`.
+   */
+  public async processAdvanceAdjustments(customerId: string): Promise<void> {
+    if (this.isConnected && this.pool) {
+      try {
+        // 1. Get total advance credits
+        const [creditRows]: [any[], any] = await this.pool.query(
+          `SELECT COALESCE(SUM(amount), 0) as total FROM advance_ledger WHERE customer_id = ? AND type = 'credit'`,
+          [customerId]
+        );
+        let availableAdvance = Number(creditRows[0]?.total || 0);
+
+        // 2. Get customer's sales sorted by date ASC, created_at ASC
+        const [salesRows]: [any[], any] = await this.pool.query(
+          `SELECT id, date, sale_amount FROM sales WHERE customer_id = ? ORDER BY date ASC, created_at ASC`,
+          [customerId]
+        );
+
+        for (const s of salesRows) {
+          const needed = Number(s.sale_amount) || 0;
+          const toAdjust = Math.min(needed, availableAdvance);
+          availableAdvance = Math.round((availableAdvance - toAdjust) * 100) / 100;
+
+          // Check if adjustment entry exists for this sale
+          const [adjRows]: [any[], any] = await this.pool.query(
+            `SELECT id FROM advance_ledger WHERE customer_id = ? AND type = 'adjustment' AND reference_id = ? LIMIT 1`,
+            [customerId, s.id]
+          );
+
+          if (toAdjust > 0) {
+            const saleDate = typeof s.date === 'string' ? s.date.split('T')[0] : new Date(s.date).toISOString().split('T')[0];
+            if (adjRows && adjRows.length > 0) {
+              await this.pool.query(
+                `UPDATE advance_ledger SET amount = ?, date = ? WHERE id = ?`,
+                [toAdjust, saleDate, adjRows[0].id]
+              );
+            } else {
+              const adjId = `adv_adj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+              await this.pool.query(
+                `INSERT INTO advance_ledger (id, customer_id, date, type, amount, reference_id) VALUES (?, ?, ?, 'adjustment', ?, ?)`,
+                [adjId, customerId, saleDate, toAdjust, s.id]
+              );
+            }
+          } else {
+            if (adjRows && adjRows.length > 0) {
+              await this.pool.query(`DELETE FROM advance_ledger WHERE id = ?`, [adjRows[0].id]);
+            }
+          }
+        }
+        return;
+      } catch (err: any) {
+        console.error('[TiDB] processAdvanceAdjustments error:', err.message);
+      }
+    }
+
+    // Local Fallback Mode
+    const credits = this.fallbackAdvanceLedger.filter(
+      (a) => a.customer_id === customerId && a.type === 'credit'
+    );
+    let availableAdvance = credits.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+
+    const custSales = this.fallbackSales
+      .filter((s) => s.customer_id === customerId)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Clear old adjustments for this customer and rebuild deterministically
+    this.fallbackAdvanceLedger = this.fallbackAdvanceLedger.filter(
+      (a) => !(a.customer_id === customerId && a.type === 'adjustment')
+    );
+
+    for (const s of custSales) {
+      const needed = Number(s.sale_amount) || 0;
+      const toAdjust = Math.round(Math.min(needed, availableAdvance) * 100) / 100;
+      availableAdvance = Math.round((availableAdvance - toAdjust) * 100) / 100;
+
+      if (toAdjust > 0) {
+        const adjId = `adv_adj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        this.fallbackAdvanceLedger.push({
+          id: adjId,
+          customer_id: customerId,
+          date: s.date,
+          type: 'adjustment',
+          amount: toAdjust,
+          reference_id: s.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  /**
+   * Phase 5: Record a Payment (Daily sale payment or advance deposit)
+   * POST /api/payments
+   * Strict fields: id, customer_id, date, amount, payment_type, payment_mode
+   */
+  public async recordPayment(
+    data: CreatePaymentDTO
+  ): Promise<{ payment: Payment; advance_balance: number }> {
+    const customer = await this.getCustomerById(data.customer_id);
+    if (!customer) {
+      throw new Error(`Customer with ID ${data.customer_id} does not exist`);
+    }
+
+    const amount = Number(data.amount);
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error('Payment amount must be greater than zero');
+    }
+
+    if (data.payment_type !== 'daily' && data.payment_type !== 'advance') {
+      throw new Error("Payment type must be either 'daily' or 'advance'");
+    }
+
+    const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const paymentMode = data.payment_mode?.trim() || 'cash';
+    const nowIso = new Date().toISOString();
+
+    const payment: Payment = {
+      id: paymentId,
+      customer_id: data.customer_id,
+      date: data.date,
+      amount: Math.round(amount * 100) / 100,
+      payment_type: data.payment_type,
+      payment_mode: paymentMode,
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+
+    if (this.isConnected && this.pool) {
+      try {
+        await this.pool.query(
+          `INSERT INTO payments (id, customer_id, date, amount, payment_type, payment_mode)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [paymentId, data.customer_id, data.date, payment.amount, data.payment_type, paymentMode]
+        );
+
+        if (data.payment_type === 'advance') {
+          const advLedgerId = `adv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await this.pool.query(
+            `INSERT INTO advance_ledger (id, customer_id, date, type, amount, reference_id)
+             VALUES (?, ?, ?, 'credit', ?, ?)`,
+            [advLedgerId, data.customer_id, data.date, payment.amount, paymentId]
+          );
+        }
+      } catch (err: any) {
+        console.error('[TiDB] recordPayment error:', err.message);
+      }
+    } else {
+      this.fallbackPayments.push(payment);
+      if (data.payment_type === 'advance') {
+        const advLedgerId = `adv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        this.fallbackAdvanceLedger.push({
+          id: advLedgerId,
+          customer_id: data.customer_id,
+          date: data.date,
+          type: 'credit',
+          amount: payment.amount,
+          reference_id: paymentId,
+          created_at: nowIso,
+          updated_at: nowIso,
+        });
+      }
+    }
+
+    // Automatically recalculate advance adjustments against customer sales
+    await this.processAdvanceAdjustments(data.customer_id);
+
+    const advInfo = await this.getCustomerAdvance(data.customer_id);
+    return {
+      payment,
+      advance_balance: advInfo.advance_balance,
+    };
+  }
+
+  /**
+   * Phase 5: Get customer advance balance and traceable advance ledger
+   * GET /api/customers/:id/advance
+   */
+  public async getCustomerAdvance(customerId: string): Promise<CustomerAdvanceInfo> {
+    const customer = await this.getCustomerById(customerId);
+    if (!customer) {
+      throw new Error(`Customer with ID ${customerId} does not exist`);
+    }
+
+    // Ensure adjustments are synchronized
+    await this.processAdvanceAdjustments(customerId);
+
+    let ledger: AdvanceLedgerEntry[] = [];
+    if (this.isConnected && this.pool) {
+      try {
+        const [rows]: [any[], any] = await this.pool.query(
+          `SELECT id, customer_id, date, type, amount, reference_id, created_at, updated_at
+           FROM advance_ledger
+           WHERE customer_id = ?
+           ORDER BY date ASC, created_at ASC`,
+          [customerId]
+        );
+        ledger = rows.map((r) => ({
+          id: r.id,
+          customer_id: r.customer_id,
+          date: typeof r.date === 'string' ? r.date.split('T')[0] : new Date(r.date).toISOString().split('T')[0],
+          type: r.type,
+          amount: Number(r.amount) || 0,
+          reference_id: r.reference_id,
+          created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+          updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+        }));
+      } catch (err: any) {
+        console.error('[TiDB] getCustomerAdvance error:', err.message);
+      }
+    } else {
+      ledger = this.fallbackAdvanceLedger
+        .filter((a) => a.customer_id === customerId)
+        .sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    const totalCredited = ledger
+      .filter((a) => a.type === 'credit')
+      .reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
+    const totalUsed = ledger
+      .filter((a) => a.type === 'adjustment')
+      .reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
+    const balance = Math.max(0, Math.round((totalCredited - totalUsed) * 100) / 100);
+
+    return {
+      customer_id: customer.id,
+      customer_name: customer.name,
+      advance_balance: balance,
+      total_advance_credited: Math.round(totalCredited * 100) / 100,
+      total_advance_used: Math.round(totalUsed * 100) / 100,
+      ledger,
+    };
+  }
+
+  /**
+   * Phase 5: Get payments list with optional customer_id, date, payment_type filters
    */
   public async getPayments(filters?: {
     customer_id?: string;
     date?: string;
-    from_date?: string;
-    to_date?: string;
-    payment_type?: string;
-    payment_mode?: string;
-  }): Promise<PaymentRecord[]> {
-    const { customer_id, date, from_date, to_date, payment_type, payment_mode } = filters || {};
-
+    payment_type?: PaymentType;
+  }): Promise<Payment[]> {
     if (this.isConnected && this.pool) {
       try {
-        let whereClauses: string[] = [];
-        let params: any[] = [];
+        let query =
+          'SELECT id, customer_id, date, amount, payment_type, payment_mode, created_at, updated_at FROM payments WHERE 1=1';
+        const params: any[] = [];
 
-        if (customer_id) {
-          whereClauses.push('p.customer_id = ?');
-          params.push(customer_id);
+        if (filters?.customer_id) {
+          query += ' AND customer_id = ?';
+          params.push(filters.customer_id);
         }
-        if (date) {
-          whereClauses.push('p.date = ?');
-          params.push(date);
+        if (filters?.date) {
+          query += ' AND date = ?';
+          params.push(filters.date);
         }
-        if (from_date) {
-          whereClauses.push('p.date >= ?');
-          params.push(from_date);
-        }
-        if (to_date) {
-          whereClauses.push('p.date <= ?');
-          params.push(to_date);
-        }
-        if (payment_type) {
-          whereClauses.push('p.payment_type = ?');
-          params.push(payment_type);
-        }
-        if (payment_mode) {
-          whereClauses.push('p.payment_mode = ?');
-          params.push(payment_mode);
+        if (filters?.payment_type) {
+          query += ' AND payment_type = ?';
+          params.push(filters.payment_type);
         }
 
-        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-        const [rows]: any = await this.pool.query(
-          `SELECT p.*, cust.name AS customer_name, cust.customer_code, c.id AS center_id, c.center_name
-           FROM payments p
-           JOIN customers cust ON cust.id = p.customer_id
-           LEFT JOIN collection_centers c ON c.id = cust.center_id
-           ${whereSQL}
-           ORDER BY p.created_at DESC`,
-          params
-        );
-
-        return rows.map((r: any) => ({
+        query += ' ORDER BY created_at DESC';
+        const [rows]: [any[], any] = await this.pool.query(query, params);
+        return rows.map((r) => ({
           id: r.id,
           customer_id: r.customer_id,
-          date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0],
-          amount: Number(r.amount),
+          date: typeof r.date === 'string' ? r.date.split('T')[0] : new Date(r.date).toISOString().split('T')[0],
+          amount: Number(r.amount) || 0,
           payment_type: r.payment_type,
           payment_mode: r.payment_mode,
-          reference_id: r.reference_id || '',
-          notes: r.notes || '',
-          created_at: new Date(r.created_at).toISOString(),
-          customer_name: r.customer_name,
-          customer_code: r.customer_code,
-          center_id: r.center_id,
-          center_name: r.center_name,
+          created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+          updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
         }));
-      } catch (err) {
-        console.error('[TiDB] Error fetching payments:', err);
+      } catch (err: any) {
+        console.error('[TiDB] getPayments error:', err.message);
       }
     }
 
-    // Fallback mode
-    return this.fallbackPayments.filter((p) => {
-      if (customer_id && p.customer_id !== customer_id) return false;
-      if (date && p.date !== date) return false;
-      if (from_date && p.date < from_date) return false;
-      if (to_date && p.date > to_date) return false;
-      if (payment_type && p.payment_type !== payment_type) return false;
-      if (payment_mode && p.payment_mode !== payment_mode) return false;
-      return true;
-    });
+    let results = [...this.fallbackPayments];
+    if (filters?.customer_id) {
+      results = results.filter((p) => p.customer_id === filters.customer_id);
+    }
+    if (filters?.date) {
+      results = results.filter((p) => p.date === filters.date);
+    }
+    if (filters?.payment_type) {
+      results = results.filter((p) => p.payment_type === filters.payment_type);
+    }
+    return results.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
   }
 
   /**
-   * Get available Advance Balance for a customer
-   */
-  public async getCustomerAdvanceBalance(customerId: string): Promise<{
-    total_added: number;
-    total_used: number;
-    available_balance: number;
-  }> {
-    if (this.isConnected && this.pool) {
-      try {
-        const [rows]: any = await this.pool.query(
-          `SELECT 
-             COALESCE(SUM(CASE WHEN type = 'ADVANCE_ADDED' THEN amount ELSE 0 END), 0) AS total_added,
-             COALESCE(SUM(CASE WHEN type = 'ADVANCE_USED' THEN amount ELSE 0 END), 0) AS total_used
-           FROM advance_ledger
-           WHERE customer_id = ?`,
-          [customerId]
-        );
-
-        const total_added = Number(rows[0]?.total_added || 0);
-        const total_used = Number(rows[0]?.total_used || 0);
-        const available_balance = Number(Math.max(0, total_added - total_used).toFixed(2));
-
-        return { total_added, total_used, available_balance };
-      } catch (err) {
-        console.error('[TiDB] Error calculating customer advance balance:', err);
-      }
-    }
-
-    // Fallback mode
-    const custLedger = this.fallbackAdvanceLedger.filter((l) => l.customer_id === customerId);
-    const total_added = custLedger
-      .filter((l) => l.type === 'ADVANCE_ADDED')
-      .reduce((sum, l) => sum + Number(l.amount || 0), 0);
-    const total_used = custLedger
-      .filter((l) => l.type === 'ADVANCE_USED')
-      .reduce((sum, l) => sum + Number(l.amount || 0), 0);
-    const available_balance = Number(Math.max(0, total_added - total_used).toFixed(2));
-
-    return {
-      total_added: Number(total_added.toFixed(2)),
-      total_used: Number(total_used.toFixed(2)),
-      available_balance,
-    };
-  }
-
-  /**
-   * Traceable Advance Ledger audit trail
-   */
-  public async getAdvanceLedger(filters?: {
-    customer_id?: string;
-    from_date?: string;
-    to_date?: string;
-  }): Promise<AdvanceLedgerEntry[]> {
-    const { customer_id, from_date, to_date } = filters || {};
-
-    if (this.isConnected && this.pool) {
-      try {
-        let whereClauses: string[] = [];
-        let params: any[] = [];
-
-        if (customer_id) {
-          whereClauses.push('al.customer_id = ?');
-          params.push(customer_id);
-        }
-        if (from_date) {
-          whereClauses.push('al.date >= ?');
-          params.push(from_date);
-        }
-        if (to_date) {
-          whereClauses.push('al.date <= ?');
-          params.push(to_date);
-        }
-
-        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-        const [rows]: any = await this.pool.query(
-          `SELECT al.*, cust.name AS customer_name, cust.customer_code
-           FROM advance_ledger al
-           JOIN customers cust ON cust.id = al.customer_id
-           ${whereSQL}
-           ORDER BY al.created_at DESC`,
-          params
-        );
-
-        return rows.map((r: any) => ({
-          id: r.id,
-          customer_id: r.customer_id,
-          date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0],
-          type: r.type,
-          amount: Number(r.amount),
-          reference_id: r.reference_id || '',
-          notes: r.notes || '',
-          created_at: new Date(r.created_at).toISOString(),
-          customer_name: r.customer_name,
-          customer_code: r.customer_code,
-        }));
-      } catch (err) {
-        console.error('[TiDB] Error fetching advance ledger:', err);
-      }
-    }
-
-    return this.fallbackAdvanceLedger.filter((l) => {
-      if (customer_id && l.customer_id !== customer_id) return false;
-      if (from_date && l.date < from_date) return false;
-      if (to_date && l.date > to_date) return false;
-      return true;
-    });
-  }
-
-  /**
-   * Automatic Advance Adjustment (Rule 5 & 6)
-   * The backend automatically computes:
-   * advance_to_use = min(available_advance, sale)
-   * Uses database transaction, prevents duplicates and prevents negative advance balance.
-   */
-  public async autoAdjustAdvanceForCustomer(
-    customerId: string,
-    date: string,
-    explicitSale?: number
-  ): Promise<{
-    customer_id: string;
-    date: string;
-    sale: number;
-    available_advance: number;
-    advance_used: number;
-    remaining_advance: number;
-    remaining_sale: number;
-  }> {
-    const customer = await this.getCustomerById(customerId);
-    const rate = Number(customer?.rate || 60.0);
-
-    let sale = 0;
-    if (explicitSale !== undefined) {
-      sale = Number(Math.max(0, explicitSale).toFixed(2));
-    } else {
-      // Sum actual confirmed deliveries for today
-      if (this.isConnected && this.pool) {
-        const [delRows]: any = await this.pool.query(
-          `SELECT COALESCE(SUM(actual_qty), 0) AS total_qty
-           FROM deliveries
-           WHERE customer_id = ? AND date = ? AND status = 'DELIVERED'`,
-          [customerId, date]
-        );
-        const totalQty = Number(delRows[0]?.total_qty || 0);
-        sale = Number((totalQty * rate).toFixed(2));
-      } else {
-        const totalQty = this.fallbackDeliveries
-          .filter((d) => d.customer_id === customerId && d.date === date && d.status === 'DELIVERED')
-          .reduce((sum, d) => sum + Number(d.actual_qty || 0), 0);
-        sale = Number((totalQty * rate).toFixed(2));
-      }
-    }
-
-    const refId = `AUTO_ADJUST_${customerId}_${date}`;
-
-    if (this.isConnected && this.pool) {
-      const conn = await this.pool.getConnection();
-      try {
-        await conn.beginTransaction();
-
-        // Calculate available advance EXCLUDING any existing adjustment for this customer and date
-        const [balRows]: any = await conn.query(
-          `SELECT 
-             COALESCE(SUM(CASE WHEN type = 'ADVANCE_ADDED' THEN amount ELSE 0 END), 0) AS total_added,
-             COALESCE(SUM(CASE WHEN type = 'ADVANCE_USED' AND reference_id != ? THEN amount ELSE 0 END), 0) AS prior_used
-           FROM advance_ledger
-           WHERE customer_id = ?`,
-          [refId, customerId]
-        );
-
-        const totalAdded = Number(balRows[0]?.total_added || 0);
-        const priorUsed = Number(balRows[0]?.prior_used || 0);
-        const availableAdvance = Number(Math.max(0, totalAdded - priorUsed).toFixed(2));
-
-        const advanceToUse = Number(Math.min(availableAdvance, sale).toFixed(2));
-
-        // Check if an adjustment entry already exists for this customer + date
-        const [existingRows]: any = await conn.query(
-          `SELECT id FROM advance_ledger WHERE customer_id = ? AND reference_id = ? LIMIT 1`,
-          [customerId, refId]
-        );
-
-        if (existingRows && existingRows.length > 0) {
-          if (advanceToUse > 0) {
-            await conn.query(
-              `UPDATE advance_ledger SET amount = ?, notes = ? WHERE id = ?`,
-              [advanceToUse, `Auto-adjusted advance against daily sale of ₹${sale}`, existingRows[0].id]
-            );
-          } else {
-            await conn.query(`DELETE FROM advance_ledger WHERE id = ?`, [existingRows[0].id]);
-          }
-        } else if (advanceToUse > 0) {
-          const advId = `adv_used_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-          await conn.query(
-            `INSERT INTO advance_ledger (id, customer_id, date, type, amount, reference_id, notes, created_at)
-             VALUES (?, ?, ?, 'ADVANCE_USED', ?, ?, ?, NOW())`,
-            [advId, customerId, date, advanceToUse, refId, `Auto-adjusted advance against daily sale of ₹${sale}`]
-          );
-        }
-
-        await conn.commit();
-
-        const remainingAdvance = Number(Math.max(0, availableAdvance - advanceToUse).toFixed(2));
-        const remainingSale = Number(Math.max(0, sale - advanceToUse).toFixed(2));
-
-        return {
-          customer_id: customerId,
-          date,
-          sale,
-          available_advance: availableAdvance,
-          advance_used: advanceToUse,
-          remaining_advance: remainingAdvance,
-          remaining_sale: remainingSale,
-        };
-      } catch (err) {
-        await conn.rollback();
-        console.error('[TiDB] Auto advance adjustment error:', err);
-        throw err;
-      } finally {
-        conn.release();
-      }
-    }
-
-    // Fallback mode
-    const custLedger = this.fallbackAdvanceLedger.filter((l) => l.customer_id === customerId);
-    const totalAdded = custLedger
-      .filter((l) => l.type === 'ADVANCE_ADDED')
-      .reduce((sum, l) => sum + Number(l.amount || 0), 0);
-    const priorUsed = custLedger
-      .filter((l) => l.type === 'ADVANCE_USED' && l.reference_id !== refId)
-      .reduce((sum, l) => sum + Number(l.amount || 0), 0);
-
-    const availableAdvance = Number(Math.max(0, totalAdded - priorUsed).toFixed(2));
-    const advanceToUse = Number(Math.min(availableAdvance, sale).toFixed(2));
-
-    const existingIdx = this.fallbackAdvanceLedger.findIndex(
-      (l) => l.customer_id === customerId && l.reference_id === refId
-    );
-
-    if (existingIdx !== -1) {
-      if (advanceToUse > 0) {
-        this.fallbackAdvanceLedger[existingIdx].amount = advanceToUse;
-      } else {
-        this.fallbackAdvanceLedger.splice(existingIdx, 1);
-      }
-    } else if (advanceToUse > 0) {
-      this.fallbackAdvanceLedger.push({
-        id: `adv_used_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        customer_id: customerId,
-        date,
-        type: 'ADVANCE_USED',
-        amount: advanceToUse,
-        reference_id: refId,
-        notes: `Auto-adjusted advance against daily sale of ₹${sale}`,
-        created_at: new Date().toISOString(),
-        customer_name: customer?.name,
-        customer_code: customer?.customer_code,
-      });
-    }
-
-    const remainingAdvance = Number(Math.max(0, availableAdvance - advanceToUse).toFixed(2));
-    const remainingSale = Number(Math.max(0, sale - advanceToUse).toFixed(2));
-
-    return {
-      customer_id: customerId,
-      date,
-      sale,
-      available_advance: availableAdvance,
-      advance_used: advanceToUse,
-      remaining_advance: remainingAdvance,
-      remaining_sale: remainingSale,
-    };
-  }
-
-  /**
-   * Get complete daily payment summaries with Sale, Advance, Paid, Due calculation
-   */
-  public async getDailyPaymentSummaries(options: {
-    date: string;
-    center_id?: string;
-    search?: string;
-  }): Promise<DailyPaymentSummary[]> {
-    const { date, center_id, search } = options;
-    const { customers } = await this.getCustomers({ center_id, search, status: 'active' });
-
-    // Fetch morning & evening deliveries for accurate daily sale calculation
-    const morningDeliveries = await this.getDeliveries({ date, session: 'MORNING', center_id });
-    const eveningDeliveries = await this.getDeliveries({ date, session: 'EVENING', center_id });
-
-    // Fetch all daily payments made on this date
-    const dailyPayments = await this.getPayments({ date, payment_type: 'DAILY_PAYMENT' });
-
-    const summaries: DailyPaymentSummary[] = [];
-
-    for (const cust of customers) {
-      let totalQty = 0;
-      if (this.isConnected && this.pool) {
-        const [delRows]: any = await this.pool.query(
-          `SELECT COALESCE(SUM(actual_qty), 0) AS total_qty
-           FROM deliveries
-           WHERE customer_id = ? AND date = ? AND status = 'DELIVERED'`,
-          [cust.id, date]
-        );
-        totalQty = Number(delRows[0]?.total_qty || 0);
-      } else {
-        totalQty = this.fallbackDeliveries
-          .filter((d) => d.customer_id === cust.id && d.date === date && d.status === 'DELIVERED')
-          .reduce((sum, d) => sum + Number(d.actual_qty || 0), 0);
-      }
-      const rate = Number(cust.rate || 60.0);
-      const sale = Number((totalQty * rate).toFixed(2));
-
-      // Calculate Advance & Auto Adjust
-      const adj = await this.autoAdjustAdvanceForCustomer(cust.id, date, sale);
-
-      // Calculate Paid on this date
-      const custPayments = dailyPayments.filter((p) => p.customer_id === cust.id);
-      const paid = Number(custPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0).toFixed(2));
-
-      // Due calculation
-      const due = Number(Math.max(0, adj.remaining_sale - paid).toFixed(2));
-
-      // Payment Status
-      let status: 'PAID' | 'PARTIAL' | 'PENDING' | 'OVERPAID' = 'PENDING';
-      if (sale === 0 && paid === 0) {
-        status = 'PAID';
-      } else if (due === 0 && (sale > 0 || paid > 0)) {
-        status = 'PAID';
-      } else if (paid > adj.remaining_sale) {
-        status = 'OVERPAID';
-      } else if (paid > 0 || adj.advance_used > 0) {
-        status = 'PARTIAL';
-      } else {
-        status = 'PENDING';
-      }
-
-      summaries.push({
-        date,
-        customer_id: cust.id,
-        customer_name: cust.name,
-        customer_code: cust.customer_code,
-        center_id: cust.center_id || cust.collection_center_id || 'c1',
-        center_name: cust.center_name || 'Center',
-        phone: cust.phone || cust.mobile,
-        rate,
-        total_qty: totalQty,
-        sale,
-        available_advance: adj.available_advance,
-        advance_used: adj.advance_used,
-        remaining_advance: adj.remaining_advance,
-        remaining_sale: adj.remaining_sale,
-        paid,
-        due,
-        status,
-      });
-    }
-
-    return summaries;
-  }
-
-  // ==========================================
-  // CUSTOMER HISTORY & ANALYTICS (Phase 6)
-  // ==========================================
-
-  /**
-   * Get complete customer detail & history for a given month or date range
+   * Phase 6: Customer History & Monthly Summary
+   * GET /api/customers/:id/history
+   * Customer History must show:
+   * - Date, Morning, Evening, Total, Sale, Advance Used, Paid, Due
+   * Customer Monthly Summary:
+   * - Total Milk, Total Sales, Total Paid, Total Due, Advance Balance
    */
   public async getCustomerHistory(
     customerId: string,
-    options?: { month_year?: string; from_date?: string; to_date?: string }
-  ): Promise<{
-    customer: Customer | null;
-    history: Array<{
-      date: string;
-      morning: number;
-      evening: number;
-      total: number;
-      rate: number;
-      sale: number;
-      advance_used: number;
-      paid: number;
-      due: number;
-    }>;
-    monthly_summary: {
-      total_milk: number;
-      total_sales: number;
-      total_paid: number;
-      total_due: number;
-      advance_balance: number;
-    };
-  }> {
+    month?: string
+  ): Promise<CustomerHistoryResponse> {
     const customer = await this.getCustomerById(customerId);
-    const rate = Number(customer?.rate || 60.0);
-
-    let fromDate = options?.from_date;
-    let toDate = options?.to_date;
-
-    if (options?.month_year) {
-      fromDate = `${options.month_year}-01`;
-      toDate = `${options.month_year}-31`;
+    if (!customer) {
+      throw new Error(`Customer with ID ${customerId} does not exist`);
     }
 
-    if (!fromDate) {
-      const now = new Date();
-      fromDate = `${now.toISOString().slice(0, 7)}-01`;
-      toDate = now.toISOString().split('T')[0];
-    }
-    if (!toDate) {
-      toDate = new Date().toISOString().split('T')[0];
-    }
+    // Ensure all advance adjustments are up to date
+    await this.processAdvanceAdjustments(customerId);
 
-    let customerDeliveries: any[] = [];
-    let customerPayments: any[] = [];
-    let customerAdvanceUsed: any[] = [];
+    const targetMonth = month || new Date().toISOString().substring(0, 7);
+
+    // Collect all dates with activity for this customer
+    const dateSet = new Set<string>();
 
     if (this.isConnected && this.pool) {
       try {
-        const [dRows]: any = await this.pool.query(
-          `SELECT date, session, actual_qty, status
-           FROM deliveries
-           WHERE customer_id = ? AND date >= ? AND date <= ?`,
-          [customerId, fromDate, toDate]
+        const [delDates]: [any[], any] = await this.pool.query(
+          `SELECT DISTINCT date FROM deliveries WHERE customer_id = ?`,
+          [customerId]
         );
-        customerDeliveries = dRows.map((r: any) => ({
-          ...r,
-          date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0],
-          actual_qty: Number(r.actual_qty),
-        }));
+        for (const r of delDates) {
+          const dStr =
+            typeof r.date === 'string'
+              ? r.date.split('T')[0]
+              : new Date(r.date).toISOString().split('T')[0];
+          dateSet.add(dStr);
+        }
 
-        const [pRows]: any = await this.pool.query(
-          `SELECT date, amount
-           FROM payments
-           WHERE customer_id = ? AND date >= ? AND date <= ? AND payment_type = 'DAILY_PAYMENT'`,
-          [customerId, fromDate, toDate]
+        const [saleDates]: [any[], any] = await this.pool.query(
+          `SELECT DISTINCT date FROM sales WHERE customer_id = ?`,
+          [customerId]
         );
-        customerPayments = pRows.map((r: any) => ({
-          ...r,
-          date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0],
-          amount: Number(r.amount),
-        }));
+        for (const r of saleDates) {
+          const dStr =
+            typeof r.date === 'string'
+              ? r.date.split('T')[0]
+              : new Date(r.date).toISOString().split('T')[0];
+          dateSet.add(dStr);
+        }
 
-        const [advRows]: any = await this.pool.query(
-          `SELECT date, amount
-           FROM advance_ledger
-           WHERE customer_id = ? AND date >= ? AND date <= ? AND type = 'ADVANCE_USED'`,
-          [customerId, fromDate, toDate]
+        const [payDates]: [any[], any] = await this.pool.query(
+          `SELECT DISTINCT date FROM payments WHERE customer_id = ?`,
+          [customerId]
         );
-        customerAdvanceUsed = advRows.map((r: any) => ({
-          ...r,
-          date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0],
-          amount: Number(r.amount),
-        }));
-      } catch (err) {
-        console.error('[TiDB] Error fetching customer history:', err);
+        for (const r of payDates) {
+          const dStr =
+            typeof r.date === 'string'
+              ? r.date.split('T')[0]
+              : new Date(r.date).toISOString().split('T')[0];
+          dateSet.add(dStr);
+        }
+      } catch (err: any) {
+        console.error('[TiDB] getCustomerHistory dates query error:', err.message);
       }
     } else {
-      customerDeliveries = this.fallbackDeliveries.filter(
-        (d) => d.customer_id === customerId && d.date >= fromDate! && d.date <= toDate!
-      );
-      customerPayments = this.fallbackPayments.filter(
-        (p) =>
-          p.customer_id === customerId &&
-          p.date >= fromDate! &&
-          p.date <= toDate! &&
-          p.payment_type === 'DAILY_PAYMENT'
-      );
-      customerAdvanceUsed = this.fallbackAdvanceLedger.filter(
-        (l) =>
-          l.customer_id === customerId &&
-          l.date >= fromDate! &&
-          l.date <= toDate! &&
-          l.type === 'ADVANCE_USED'
-      );
+      this.fallbackDeliveries
+        .filter((d) => d.customer_id === customerId)
+        .forEach((d) => dateSet.add(d.date));
+
+      this.fallbackSales
+        .filter((s) => s.customer_id === customerId)
+        .forEach((s) => dateSet.add(s.date));
+
+      this.fallbackPayments
+        .filter((p) => p.customer_id === customerId)
+        .forEach((p) => dateSet.add(p.date));
     }
 
-    // Collect all dates with activity
-    const datesSet = new Set<string>();
-    customerDeliveries.forEach((d) => datesSet.add(d.date));
-    customerPayments.forEach((p) => datesSet.add(p.date));
-    customerAdvanceUsed.forEach((a) => datesSet.add(a.date));
+    // Sort dates in descending order (most recent first)
+    const sortedDates = Array.from(dateSet).sort((a, b) => b.localeCompare(a));
 
-    // Sort dates descending
-    const sortedDates = Array.from(datesSet).sort((a, b) => b.localeCompare(a));
+    const items: CustomerHistoryItem[] = [];
 
-    const history = sortedDates.map((dStr) => {
-      const mDel = customerDeliveries.find((d) => d.date === dStr && d.session === 'MORNING');
-      const eDel = customerDeliveries.find((d) => d.date === dStr && d.session === 'EVENING');
+    for (const date of sortedDates) {
+      const sale = await this.syncCustomerSaleForDate(customerId, date);
 
-      const morning = mDel && mDel.status === 'DELIVERED' ? Number(mDel.actual_qty || 0) : 0;
-      const evening = eDel && eDel.status === 'DELIVERED' ? Number(eDel.actual_qty || 0) : 0;
-      const total = Number((morning + evening).toFixed(2));
-      const sale = Number((total * rate).toFixed(2));
+      let advanceUsed = 0;
+      let paid = 0;
 
-      const advUsed = customerAdvanceUsed
-        .filter((a) => a.date === dStr)
-        .reduce((sum, a) => sum + Number(a.amount || 0), 0);
+      if (this.isConnected && this.pool) {
+        try {
+          const [advRows]: [any[], any] = await this.pool.query(
+            `SELECT COALESCE(SUM(amount), 0) as total FROM advance_ledger WHERE customer_id = ? AND date = ? AND type = 'adjustment'`,
+            [customerId, date]
+          );
+          advanceUsed = Number(advRows[0]?.total || 0);
 
-      const paid = customerPayments
-        .filter((p) => p.date === dStr)
-        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+          const [payRows]: [any[], any] = await this.pool.query(
+            `SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE customer_id = ? AND date = ? AND payment_type = 'daily'`,
+            [customerId, date]
+          );
+          paid = Number(payRows[0]?.total || 0);
+        } catch (err: any) {
+          console.error('[TiDB] getCustomerHistory query error:', err.message);
+        }
+      } else {
+        advanceUsed = this.fallbackAdvanceLedger
+          .filter((a) => a.customer_id === customerId && a.date === date && a.type === 'adjustment')
+          .reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
 
-      const remainingSale = Math.max(0, sale - advUsed);
-      const due = Number(Math.max(0, remainingSale - paid).toFixed(2));
+        paid = this.fallbackPayments
+          .filter((p) => p.customer_id === customerId && p.date === date && p.payment_type === 'daily')
+          .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      }
 
-      return {
-        date: dStr,
-        morning: Number(morning.toFixed(2)),
-        evening: Number(evening.toFixed(2)),
-        total,
-        rate,
-        sale,
-        advance_used: Number(advUsed.toFixed(2)),
-        paid: Number(paid.toFixed(2)),
+      advanceUsed = Math.round(advanceUsed * 100) / 100;
+      paid = Math.round(paid * 100) / 100;
+      const due = Math.max(0, Math.round((sale.sale_amount - advanceUsed - paid) * 100) / 100);
+
+      items.push({
+        date,
+        morning: sale.morning_qty,
+        evening: sale.evening_qty,
+        total: sale.total_litres,
+        rate: sale.rate,
+        sale: sale.sale_amount,
+        advance_used: advanceUsed,
+        paid,
         due,
-      };
-    });
+      });
+    }
 
-    const totalMilk = Number(history.reduce((sum, h) => sum + h.total, 0).toFixed(2));
-    const totalSales = Number(history.reduce((sum, h) => sum + h.sale, 0).toFixed(2));
-    const totalPaid = Number(history.reduce((sum, h) => sum + h.paid, 0).toFixed(2));
-    const totalDue = Number(history.reduce((sum, h) => sum + h.due, 0).toFixed(2));
+    // Monthly summary calculation
+    const monthItems = items.filter((item) => item.date.startsWith(targetMonth));
+    const totalMilk = monthItems.reduce((acc, it) => acc + it.total, 0);
+    const totalSales = monthItems.reduce((acc, it) => acc + it.sale, 0);
+    const totalPaid = monthItems.reduce((acc, it) => acc + it.paid, 0);
+    const totalDue = monthItems.reduce((acc, it) => acc + it.due, 0);
 
-    const advBal = await this.getCustomerAdvanceBalance(customerId);
+    const advanceInfo = await this.getCustomerAdvance(customerId);
 
     return {
       customer,
-      history,
+      items,
       monthly_summary: {
-        total_milk: totalMilk,
-        total_sales: totalSales,
-        total_paid: totalPaid,
-        total_due: totalDue,
-        advance_balance: advBal.available_balance,
+        month: targetMonth,
+        total_milk: Math.round(totalMilk * 100) / 100,
+        total_sales: Math.round(totalSales * 100) / 100,
+        total_paid: Math.round(totalPaid * 100) / 100,
+        total_due: Math.round(totalDue * 100) / 100,
+        advance_balance: advanceInfo.advance_balance,
       },
     };
   }
 
   /**
-   * Get 100% database-driven dashboard metrics (Phase 6)
+   * Day-wise sales display
+   * Columns: Date, Customer, Morning, Evening, Total, Rate, Sale, Advance Used, Paid, Due
+   * Due amount formula: Due = Daily Sale - (Advance Used + Paid)
    */
-  public async getDashboardStats(date: string, centerId?: string): Promise<{
-    date: string;
-    today_milk: number;
-    morning_milk: number;
-    evening_milk: number;
-    today_sales: number;
-    today_paid: number;
-    today_due: number;
-    active_suppliers: number;
-    collection_centers: number;
-    center_breakdown: Array<{
-      center_id: string;
-      center_name: string;
-      morning_milk: number;
-      evening_milk: number;
-      today_total: number;
-      today_sales: number;
-      today_paid: number;
-      today_due: number;
-      registered_suppliers: number;
-    }>;
-    recent_deliveries: Array<{
-      id: string;
-      customer_name: string;
-      customer_code: string;
-      center_name: string;
-      session: string;
-      actual_qty: number;
-      status: string;
-      total_amount: number;
-      date: string;
-    }>;
-    recent_payments: Array<{
-      id: string;
-      customer_name: string;
-      customer_code: string;
-      amount: number;
-      payment_type: string;
-      payment_mode: string;
-      reference_id: string;
-      date: string;
-    }>;
-    pending_balances: Array<{
-      customer_id: string;
-      customer_name: string;
-      customer_code: string;
-      center_name: string;
-      sale: number;
-      paid: number;
-      due: number;
-    }>;
-    weekly_collection: Array<{
-      date: string;
-      day: string;
-      morning: number;
-      evening: number;
-      total: number;
-    }>;
-  }> {
-    const centerFilter = centerId && centerId !== 'all' ? centerId : undefined;
-
-    // 1. Center Totals
-    const centerTotalsData = await this.getCenterTotals(date);
-
-    // 2. Daily Payment & Sales Summaries
-    const dailySummaries = await this.getDailyPaymentSummaries({
-      date,
-      center_id: centerFilter,
-    });
-
-    const todayMilk = centerTotalsData.overall.daily_total;
-    const morningMilk = centerTotalsData.overall.morning_total;
-    const eveningMilk = centerTotalsData.overall.evening_total;
-
-    const todaySales = Number(dailySummaries.reduce((sum, s) => sum + s.sale, 0).toFixed(2));
-    const todayPaid = Number(dailySummaries.reduce((sum, s) => sum + s.paid, 0).toFixed(2));
-    const todayDue = Number(dailySummaries.reduce((sum, s) => sum + s.due, 0).toFixed(2));
-
-    const { customers } = await this.getCustomers({ center_id: centerFilter, status: 'active' });
-    const allCenters = await this.getCenters();
-
-    // 3. Center breakdown
-    const centerBreakdown = allCenters
-      .filter((c) => !centerFilter || c.id === centerFilter)
-      .map((c) => {
-        const ct = centerTotalsData.centers.find((item) => item.center_id === c.id);
-        const centerSummaries = dailySummaries.filter((s) => s.center_id === c.id);
-        const centerSuppliers = customers.filter((cust) => cust.center_id === c.id || cust.collection_center_id === c.id);
-
-        return {
-          center_id: c.id,
-          center_name: c.center_name || c.name || 'Center',
-          morning_milk: ct?.morning_total || 0,
-          evening_milk: ct?.evening_total || 0,
-          today_total: ct?.daily_total || 0,
-          today_sales: Number(centerSummaries.reduce((sum, s) => sum + s.sale, 0).toFixed(2)),
-          today_paid: Number(centerSummaries.reduce((sum, s) => sum + s.paid, 0).toFixed(2)),
-          today_due: Number(centerSummaries.reduce((sum, s) => sum + s.due, 0).toFixed(2)),
-          registered_suppliers: centerSuppliers.length,
-        };
-      });
-
-    // 4. Recent Deliveries (10 latest)
-    let recentDeliveries: any[] = [];
-    if (this.isConnected && this.pool) {
-      try {
-        const [rows]: any = await this.pool.query(
-          `SELECT del.*, cust.name AS customer_name, cust.customer_code, c.center_name, cust.rate
-           FROM deliveries del
-           JOIN customers cust ON cust.id = del.customer_id
-           JOIN collection_centers c ON c.id = del.center_id
-           ORDER BY del.date DESC, del.created_at DESC LIMIT 8`
-        );
-        recentDeliveries = rows.map((r: any) => ({
-          id: r.id,
-          customer_name: r.customer_name,
-          customer_code: r.customer_code,
-          center_name: r.center_name,
-          session: r.session,
-          actual_qty: Number(r.actual_qty),
-          status: r.status,
-          total_amount: Number((Number(r.actual_qty) * Number(r.rate || 60.0)).toFixed(2)),
-          date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0],
-        }));
-      } catch (err) {
-        console.error('[TiDB] Error fetching recent deliveries:', err);
-      }
-    } else {
-      recentDeliveries = [...this.fallbackDeliveries]
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        .slice(0, 8)
-        .map((d) => ({
-          id: d.id,
-          customer_name: d.customer_name || 'Customer',
-          customer_code: d.customer_code || 'SUP',
-          center_name: d.center_name || 'Center',
-          session: d.session,
-          actual_qty: Number(d.actual_qty),
-          status: d.status,
-          total_amount: Number(d.total_amount || 0),
-          date: d.date,
-        }));
+  public async getDayWiseSales(date: string, customerId?: string): Promise<SalesResponse> {
+    let customers = await this.getCustomers({ status: 'active' });
+    if (customerId) {
+      customers = customers.filter((c) => c.id === customerId);
     }
 
-    // 5. Recent Payments (8 latest)
-    const recentPaymentsRaw = await this.getPayments({});
-    const recentPayments = recentPaymentsRaw.slice(0, 8).map((p) => ({
-      id: p.id,
-      customer_name: p.customer_name || 'Customer',
-      customer_code: p.customer_code || 'SUP',
-      amount: p.amount,
-      payment_type: p.payment_type,
-      payment_mode: p.payment_mode,
-      reference_id: p.reference_id || '---',
-      date: p.date,
-    }));
+    const sales: DayWiseSaleItem[] = [];
+    let totalMorning = 0;
+    let totalEvening = 0;
+    let totalLitresAll = 0;
+    let totalSalesAll = 0;
+    let totalAdvanceUsedAll = 0;
+    let totalPaidAll = 0;
+    let totalDueAll = 0;
 
-    // 6. Pending Balances (Top suppliers with due > 0)
-    const pendingBalances = dailySummaries
-      .filter((s) => s.due > 0)
-      .sort((a, b) => b.due - a.due)
-      .slice(0, 6)
-      .map((s) => ({
-        customer_id: s.customer_id,
-        customer_name: s.customer_name,
-        customer_code: s.customer_code,
-        center_name: s.center_name,
-        sale: s.sale,
-        paid: s.paid,
-        due: s.due,
-      }));
+    for (const cust of customers) {
+      const sale = await this.syncCustomerSaleForDate(cust.id, date);
 
-    // 7. Weekly collection trend (last 7 days)
-    const weeklyCollection = [];
-    const baseDate = new Date(date);
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(baseDate);
-      d.setDate(d.getDate() - i);
-      const dStr = d.toISOString().split('T')[0];
-      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      // Phase 5: Query real advance used and daily payments for this customer on this date
+      let advanceUsed = 0;
+      let paid = 0;
 
-      const dayTotals = await this.getCenterTotals(dStr);
-      weeklyCollection.push({
-        date: dStr,
-        day: dayName,
-        morning: dayTotals.overall.morning_total,
-        evening: dayTotals.overall.evening_total,
-        total: dayTotals.overall.daily_total,
+      if (this.isConnected && this.pool) {
+        try {
+          const [advRows]: [any[], any] = await this.pool.query(
+            `SELECT COALESCE(SUM(amount), 0) as total FROM advance_ledger WHERE customer_id = ? AND date = ? AND type = 'adjustment'`,
+            [cust.id, date]
+          );
+          advanceUsed = Number(advRows[0]?.total || 0);
+
+          const [payRows]: [any[], any] = await this.pool.query(
+            `SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE customer_id = ? AND date = ? AND payment_type = 'daily'`,
+            [cust.id, date]
+          );
+          paid = Number(payRows[0]?.total || 0);
+        } catch (err: any) {
+          console.error('[TiDB] getDayWiseSales payments query error:', err.message);
+        }
+      } else {
+        advanceUsed = this.fallbackAdvanceLedger
+          .filter((a) => a.customer_id === cust.id && a.date === date && a.type === 'adjustment')
+          .reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
+
+        paid = this.fallbackPayments
+          .filter((p) => p.customer_id === cust.id && p.date === date && p.payment_type === 'daily')
+          .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      }
+
+      advanceUsed = Math.round(advanceUsed * 100) / 100;
+      paid = Math.round(paid * 100) / 100;
+      const due = Math.max(0, Math.round((sale.sale_amount - advanceUsed - paid) * 100) / 100);
+
+      totalMorning += sale.morning_qty;
+      totalEvening += sale.evening_qty;
+      totalLitresAll += sale.total_litres;
+      totalSalesAll += sale.sale_amount;
+      totalAdvanceUsedAll += advanceUsed;
+      totalPaidAll += paid;
+      totalDueAll += due;
+
+      sales.push({
+        id: sale.id,
+        customer_id: cust.id,
+        customer_name: cust.name,
+        customer_phone: cust.phone,
+        customer_area: cust.area,
+        date,
+        morning_qty: sale.morning_qty,
+        evening_qty: sale.evening_qty,
+        total_litres: sale.total_litres,
+        rate: sale.rate,
+        sale_amount: sale.sale_amount,
+        advance_used: advanceUsed,
+        paid,
+        due,
+        created_at: sale.created_at,
+        updated_at: sale.updated_at,
       });
     }
 
     return {
+      sales,
+      total: sales.length,
       date,
-      today_milk: todayMilk,
-      morning_milk: morningMilk,
-      evening_milk: eveningMilk,
-      today_sales: todaySales,
-      today_paid: todayPaid,
-      today_due: todayDue,
-      active_suppliers: customers.length,
-      collection_centers: allCenters.length,
-      center_breakdown: centerBreakdown,
-      recent_deliveries: recentDeliveries,
-      recent_payments: recentPayments,
-      pending_balances: pendingBalances,
-      weekly_collection: weeklyCollection,
+      summary: {
+        total_morning_litres: Math.round(totalMorning * 100) / 100,
+        total_evening_litres: Math.round(totalEvening * 100) / 100,
+        total_litres: Math.round(totalLitresAll * 100) / 100,
+        total_sales_amount: Math.round(totalSalesAll * 100) / 100,
+        total_advance_used: Math.round(totalAdvanceUsedAll * 100) / 100,
+        total_paid: Math.round(totalPaidAll * 100) / 100,
+        total_due: Math.round(totalDueAll * 100) / 100,
+      },
     };
   }
 
-  // ==========================================
-  // STATUS & DIAGNOSTICS
-  // ==========================================
-
+  /**
+   * Return detailed TiDB status
+   */
   public async getStatus(): Promise<DBStatus> {
     let usersCount = this.fallbackUsers.length;
-    let centersCount = this.fallbackCenters.length;
     let customersCount = this.fallbackCustomers.length;
+    let deliveriesCount = this.fallbackDeliveries.length;
+    let salesCount = this.fallbackSales.length;
+    let paymentsCount = this.fallbackPayments.length;
+    let advanceLedgerCount = this.fallbackAdvanceLedger.length;
 
-    if (this.isConnected && this.pool) {
+    if (this.pool) {
       try {
-        const [uRows]: any = await this.pool.query('SELECT COUNT(*) as count FROM users');
-        usersCount = uRows[0]?.count || 0;
+        const [uRows]: [any[], any] = await this.pool.query('SELECT COUNT(*) as count FROM users');
+        usersCount = Number(uRows[0]?.count || 0);
 
-        const [cRows]: any = await this.pool.query('SELECT COUNT(*) as count FROM collection_centers');
-        centersCount = cRows[0]?.count || 0;
+        const [cRows]: [any[], any] = await this.pool.query('SELECT COUNT(*) as count FROM customers');
+        customersCount = Number(cRows[0]?.count || 0);
 
-        const [custRows]: any = await this.pool.query('SELECT COUNT(*) as count FROM customers');
-        customersCount = custRows[0]?.count || 0;
-      } catch (e) {
-        // query error
+        const [dRows]: [any[], any] = await this.pool.query('SELECT COUNT(*) as count FROM deliveries');
+        deliveriesCount = Number(dRows[0]?.count || 0);
+
+        const [sRows]: [any[], any] = await this.pool.query('SELECT COUNT(*) as count FROM sales');
+        salesCount = Number(sRows[0]?.count || 0);
+
+        const [pRows]: [any[], any] = await this.pool.query('SELECT COUNT(*) as count FROM payments');
+        paymentsCount = Number(pRows[0]?.count || 0);
+
+        const [aRows]: [any[], any] = await this.pool.query('SELECT COUNT(*) as count FROM advance_ledger');
+        advanceLedgerCount = Number(aRows[0]?.count || 0);
+
+        this.isConnected = true;
+        this.connectionError = null;
+      } catch (err: any) {
+        this.isConnected = false;
+        this.connectionError = err.message;
       }
     }
 
@@ -2432,21 +1652,17 @@ class TiDBService {
       host: process.env.DB_HOST || '127.0.0.1',
       port: Number(process.env.DB_PORT) || 4000,
       database: process.env.DB_NAME || 'milkhub',
+      usersTableExists: true,
       usersCount,
-      centersCount,
+      customersTableExists: true,
       customersCount,
-      error: this.connectionError || undefined,
       lastChecked: new Date().toISOString(),
+      error: this.connectionError || undefined,
     };
-  }
-
-  public getPool(): Pool | null {
-    return this.pool;
-  }
-
-  public hasConnection(): boolean {
-    return this.isConnected;
   }
 }
 
 export const tidb = new TiDBService();
+
+
+

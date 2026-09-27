@@ -1,459 +1,374 @@
-import http from 'http';
+/**
+ * MILK BUSINESS CRM - PHASE 5 VERIFICATION SUITE
+ * Strictly tests:
+ * 1. Daily Payment with partial payment & due calculation (Example: Sale = ₹120, Paid = ₹50 -> Due = ₹70)
+ * 2. Advance balance stored separately from daily cash
+ * 3. Automatic advance adjustment (Example 1: Advance = ₹500, Sale = ₹120 -> Advance Used = ₹120, Remaining = ₹380, Due = ₹0)
+ * 4. Partial advance adjustment (Example 2: Advance = ₹230, Sale = ₹300 -> Advance Used = ₹230, Remaining = ₹70)
+ * 5. Traceable advance ledger (type='credit' & type='adjustment' with reference_id)
+ * 6. API POST /api/payments & GET /api/customers/:id/advance
+ */
 
-function makeRequest(options: http.RequestOptions, postData?: any): Promise<{ statusCode: number; data: any }> {
-  return new Promise((resolve, reject) => {
-    const req = http.request(options, (res) => {
-      let rawData = '';
-      res.on('data', (chunk) => {
-        rawData += chunk;
-      });
-      res.on('end', () => {
-        try {
-          const parsed = rawData ? JSON.parse(rawData) : null;
-          resolve({ statusCode: res.statusCode || 0, data: parsed });
-        } catch (e) {
-          resolve({ statusCode: res.statusCode || 0, data: rawData });
-        }
-      });
-    });
-
-    req.on('error', (err) => {
-      reject(err);
-    });
-
-    if (postData) {
-      req.write(JSON.stringify(postData));
-    }
-    req.end();
-  });
-}
+const BASE_URL = 'http://localhost:5000/api';
 
 async function runPhase5Verification() {
-  console.log('==================================================');
-  console.log('    MILKHUB CRM — PHASE 5 PAYMENTS & ADVANCE      ');
-  console.log('==================================================\n');
+  console.log('\n====================================================');
+  console.log('  MILK BUSINESS CRM - PHASE 5 VERIFICATION SUITE   ');
+  console.log('  Daily Payments, Advance Ledger & Auto-Adjustment ');
+  console.log('  Customer has NO LOGIN • Owner is Primary User     ');
+  console.log('====================================================\n');
 
-  // Step 1: Owner Login
-  console.log('1. Authenticating Owner...');
-  const loginRes = await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/auth/login',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    },
-    { email: 'milkhub@admin.com', password: 'Admin@123' }
-  );
+  let ownerToken = '';
+  const testDate = new Date().toISOString().split('T')[0];
 
-  if (loginRes.statusCode !== 200 || !loginRes.data?.token) {
-    throw new Error('Owner login failed. Check backend server.');
+  // 1. Health check
+  console.log('1. Testing GET /api/health for Phase 5...');
+  const healthRes = await fetch(`${BASE_URL}/health`);
+  const healthData = await healthRes.json();
+  console.log(`Status: ${healthRes.status}`, healthData);
+  if (!healthData.phase.includes('Phase 5')) {
+    throw new Error('Phase 5 is not active in /api/health');
   }
 
-  const token = loginRes.data.token;
-  console.log('✓ Owner authenticated successfully. JWT obtained.');
+  // 2. Authenticate Owner
+  console.log('\n2. Authenticating Owner (POST /api/auth/login)...');
+  const loginRes = await fetch(`${BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: 'milkhub@admin.com',
+      password: 'Admin@123',
+    }),
+  });
+  const loginData = await loginRes.json();
+  ownerToken = loginData.token;
+  if (!ownerToken) {
+    throw new Error('Failed to acquire owner token');
+  }
+  console.log('Owner token acquired successfully.');
 
   const authHeaders = {
-    Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
+    Authorization: `Bearer ${ownerToken}`,
   };
 
-  const testDate = '2026-09-26';
+  // 3. Test 1: Daily Payment & Partial Payment
+  // Example from PDF:
+  // Sale = ₹120, Paid = ₹50, Due = ₹70
+  console.log('\n3. CRITICAL TEST CASE 1: Daily Payment & Partial Payment...');
+  const cust1Res = await fetch(`${BASE_URL}/customers`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      name: 'Ravi Cash Daily',
+      phone: '9840112233',
+      address: 'Daily Cash Yard 1',
+      area: 'Central Town',
+      default_morning_qty: 1.5,
+      default_evening_qty: 0.5,
+      rate: 60,
+      start_date: testDate,
+      status: 'active',
+    }),
+  });
+  const cust1 = (await cust1Res.json()).customer;
+  console.log(`Created Customer: ID=${cust1.id}, Name=${cust1.name}, Rate=₹${cust1.rate}/L`);
 
-  // Helper to create test customer
-  async function createTestSupplier(name: string, code: string, rate: number = 60.0) {
-    const res = await makeRequest(
-      {
-        hostname: '127.0.0.1',
-        port: 5000,
-        path: '/api/customers',
-        method: 'POST',
-        headers: authHeaders,
-      },
-      {
-        customer_code: code,
-        name,
-        phone: '98421' + Math.floor(10000 + Math.random() * 90000),
-        address: 'Phase 5 Dairy Test Yard',
-        area: 'Srivilliputtur',
-        center_id: 'c1',
-        default_morning_qty: 1.0,
-        default_evening_qty: 1.0,
-        rate,
-        start_date: testDate,
-        status: 'active',
-      }
-    );
-    if (res.statusCode !== 201) {
-      throw new Error(`Failed to create test supplier: ${JSON.stringify(res.data)}`);
-    }
-    return res.data;
-  }
-
-  // --------------------------------------------------------------------------
-  // TEST CASE 1: Advance ₹500 + Sale ₹120 -> Used ₹120, Remaining ₹380, Due ₹0
-  // --------------------------------------------------------------------------
-  console.log('\n2. Running Test Case 1: Advance ₹500 + Sale ₹120...');
-  const cust1 = await createTestSupplier('Advance Test Supplier 1', `ADV1_${Date.now().toString().slice(-4)}`);
-
-  // Record Advance ₹500
-  const adv1Res = await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
+  // Record 1.5L morning + 0.5L evening delivery -> Total 2L * ₹60 = ₹120 Sale
+  await fetch(`${BASE_URL}/deliveries`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
       customer_id: cust1.id,
       date: testDate,
-      amount: 500.0,
-      payment_type: 'ADVANCE',
-      payment_mode: 'UPI',
-      reference_id: 'UPI_ADV_500',
-      notes: 'Customer deposited ₹500 advance',
-    }
-  );
+      session: 'morning',
+      actual_qty: 1.5,
+      status: 'delivered',
+    }),
+  });
+  await fetch(`${BASE_URL}/deliveries`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      customer_id: cust1.id,
+      date: testDate,
+      session: 'evening',
+      actual_qty: 0.5,
+      status: 'delivered',
+    }),
+  });
 
-  if (adv1Res.statusCode !== 201) {
-    throw new Error(`Failed to record advance: ${JSON.stringify(adv1Res.data)}`);
-  }
-  console.log('✓ Advance payment recorded: ₹500 via UPI');
-
-  // Verify advance balance before sale = ₹500
-  const bal1Before = await makeRequest({
-    hostname: '127.0.0.1',
-    port: 5000,
-    path: `/api/payments/advance-balance/${cust1.id}`,
-    method: 'GET',
+  // Verify Sale is ₹120 and initial Due is ₹120 before payment
+  const salesBeforePayRes = await fetch(`${BASE_URL}/sales?date=${testDate}&customer_id=${cust1.id}`, {
     headers: authHeaders,
   });
-  console.log(`  Initial Available Advance: ₹${bal1Before.data.available_balance}`);
-  if (bal1Before.data.available_balance !== 500) {
-    throw new Error(`Expected ₹500 available advance, got ${bal1Before.data.available_balance}`);
-  }
+  const saleItemBefore = (await salesBeforePayRes.json()).sales[0];
+  console.log(`Before payment: Sale = ₹${saleItemBefore.sale_amount}, Paid = ₹${saleItemBefore.paid}, Due = ₹${saleItemBefore.due}`);
 
-  // Record Delivery for Sale ₹120 (2.0L @ ₹60/L)
-  await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/deliveries',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
-      customer_id: cust1.id,
-      center_id: 'c1',
-      date: testDate,
-      session: 'MORNING',
-      actual_qty: 2.0,
-      status: 'DELIVERED',
-    }
-  );
-
-  // Run automatic advance adjustment against Sale ₹120
-  const adj1Res = await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments/auto-adjust',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
+  // Record Partial Daily Payment of ₹50
+  console.log('Recording partial daily payment of ₹50...');
+  const pay1Res = await fetch(`${BASE_URL}/payments`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
       customer_id: cust1.id,
       date: testDate,
-    }
-  );
+      amount: 50,
+      payment_type: 'daily',
+      payment_mode: 'cash',
+    }),
+  });
+  console.log(`POST /api/payments Status: ${pay1Res.status}`);
+  const pay1Data = await pay1Res.json();
+  console.log('Payment recorded:', pay1Data.payment);
 
-  if (adj1Res.statusCode !== 200) {
-    throw new Error(`Failed to auto-adjust advance: ${JSON.stringify(adj1Res.data)}`);
+  // Check sales display
+  const salesAfterPayRes = await fetch(`${BASE_URL}/sales?date=${testDate}&customer_id=${cust1.id}`, {
+    headers: authHeaders,
+  });
+  const saleItemAfter = (await salesAfterPayRes.json()).sales[0];
+  console.log('--- VERIFYING EXACT PROMPT EXAMPLE 1 ---');
+  console.log(`Sale:  ₹${saleItemAfter.sale_amount} (Expected: ₹120)`);
+  console.log(`Paid:  ₹${saleItemAfter.paid} (Expected: ₹50)`);
+  console.log(`Due:   ₹${saleItemAfter.due} (Expected: ₹70)`);
+
+  if (saleItemAfter.sale_amount !== 120 || saleItemAfter.paid !== 50 || saleItemAfter.due !== 70) {
+    throw new Error(`Example 1 calculation failed! Expected Sale=120, Paid=50, Due=70. Got Sale=${saleItemAfter.sale_amount}, Paid=${saleItemAfter.paid}, Due=${saleItemAfter.due}`);
+  }
+  console.log('✓ PASS: Daily payment & partial due verified (120 - 50 = 70)!');
+
+  // 4. Test 2: Advance & Automatic Advance Adjustment
+  // Example from PDF:
+  // Advance = ₹500, Future Sale = ₹120
+  // System automatically:
+  // Advance Used = ₹120, Remaining Advance = ₹380, Due = ₹0
+  console.log('\n4. CRITICAL TEST CASE 2: Advance Deposit & Automatic Full Adjustment...');
+  const cust2Res = await fetch(`${BASE_URL}/customers`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      name: 'Venkatesh Advance 500',
+      phone: '9840223344',
+      address: 'Advance Yard 2',
+      area: 'Temple East',
+      default_morning_qty: 2,
+      default_evening_qty: 0,
+      rate: 60,
+      start_date: testDate,
+      status: 'active',
+    }),
+  });
+  const cust2 = (await cust2Res.json()).customer;
+  console.log(`Created Customer: ID=${cust2.id}, Name=${cust2.name}, Rate=₹${cust2.rate}/L`);
+
+  // Deposit ₹500 advance
+  console.log('Depositing advance payment of ₹500 (payment_type="advance")...');
+  const advPayRes = await fetch(`${BASE_URL}/payments`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      customer_id: cust2.id,
+      date: testDate,
+      amount: 500,
+      payment_type: 'advance',
+      payment_mode: 'upi',
+    }),
+  });
+  console.log(`POST /api/payments Status: ${advPayRes.status}`);
+
+  // Verify advance balance before sale is ₹500
+  const advBeforeSaleRes = await fetch(`${BASE_URL}/customers/${cust2.id}/advance`, {
+    headers: authHeaders,
+  });
+  const advBeforeSale = await advBeforeSaleRes.json();
+  console.log(`Customer Advance Balance before sale: ₹${advBeforeSale.advance_balance} (Credited: ₹${advBeforeSale.total_advance_credited})`);
+  if (advBeforeSale.advance_balance !== 500) {
+    throw new Error(`Expected advance balance 500, got ${advBeforeSale.advance_balance}`);
   }
 
-  console.log('  Auto-Adjustment Results:');
-  console.log(`    Sale:              ₹${adj1Res.data.sale}`);
-  console.log(`    Available Advance: ₹${adj1Res.data.available_advance}`);
-  console.log(`    Advance Used:      ₹${adj1Res.data.advance_used}`);
-  console.log(`    Remaining Advance: ₹${adj1Res.data.remaining_advance}`);
-  console.log(`    Remaining Sale:    ₹${adj1Res.data.remaining_sale}`);
+  // Record delivery: 2L at ₹60/L = ₹120 Sale
+  console.log('Recording delivery: 2L morning @ ₹60/L = ₹120 Sale...');
+  await fetch(`${BASE_URL}/deliveries`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      customer_id: cust2.id,
+      date: testDate,
+      session: 'morning',
+      actual_qty: 2,
+      status: 'delivered',
+    }),
+  });
+
+  // Verify sales display
+  const salesAdvRes = await fetch(`${BASE_URL}/sales?date=${testDate}&customer_id=${cust2.id}`, {
+    headers: authHeaders,
+  });
+  const saleItemAdv = (await salesAdvRes.json()).sales[0];
+
+  // Verify customer advance ledger
+  const advAfterSaleRes = await fetch(`${BASE_URL}/customers/${cust2.id}/advance`, {
+    headers: authHeaders,
+  });
+  const advAfterSale = await advAfterSaleRes.json();
+
+  console.log('--- VERIFYING EXACT PROMPT EXAMPLE 2 ---');
+  console.log(`Advance Deposited: ₹500`);
+  console.log(`Sale Amount:       ₹${saleItemAdv.sale_amount} (Expected: ₹120)`);
+  console.log(`Advance Used:      ₹${saleItemAdv.advance_used} (Expected: ₹120)`);
+  console.log(`Remaining Advance: ₹${advAfterSale.advance_balance} (Expected: ₹380)`);
+  console.log(`Due:               ₹${saleItemAdv.due} (Expected: ₹0)`);
 
   if (
-    adj1Res.data.advance_used !== 120 ||
-    adj1Res.data.remaining_advance !== 380 ||
-    adj1Res.data.remaining_sale !== 0
+    saleItemAdv.advance_used !== 120 ||
+    advAfterSale.advance_balance !== 380 ||
+    saleItemAdv.due !== 0
   ) {
-    throw new Error(`Test Case 1 mismatch! Expected Used ₹120, Remaining ₹380, Remaining Sale ₹0`);
+    throw new Error('Example 2 calculation failed!');
   }
-  console.log('✓ PASS: Advance ₹500 + Sale ₹120 -> Used ₹120, Remaining ₹380, Due ₹0');
+  console.log('✓ PASS: Automatic advance adjustment verified (Advance Used: 120, Remaining: 380, Due: 0)!');
 
-  // --------------------------------------------------------------------------
-  // TEST CASE 2: Advance ₹230 + Sale ₹300 -> Used ₹230, Remaining ₹0, Remaining Sale ₹70
-  // --------------------------------------------------------------------------
-  console.log('\n3. Running Test Case 2: Advance ₹230 + Sale ₹300 (Partial Advance)...');
-  const cust2 = await createTestSupplier('Advance Test Supplier 2', `ADV2_${Date.now().toString().slice(-4)}`);
+  // 5. Test 3: Partial Advance Adjustment
+  // Example from PDF:
+  // Advance = ₹230, Sale = ₹300
+  // System automatically:
+  // Advance Used = ₹230, Remaining amount = ₹70
+  console.log('\n5. CRITICAL TEST CASE 3: Partial Advance Adjustment (Sale > Advance)...');
+  const cust3Res = await fetch(`${BASE_URL}/customers`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      name: 'Muthu Advance 230',
+      phone: '9840334455',
+      address: 'Advance Yard 3',
+      area: 'West Gate',
+      default_morning_qty: 3,
+      default_evening_qty: 2,
+      rate: 60,
+      start_date: testDate,
+      status: 'active',
+    }),
+  });
+  const cust3 = (await cust3Res.json()).customer;
+  console.log(`Created Customer: ID=${cust3.id}, Name=${cust3.name}, Rate=₹${cust3.rate}/L`);
 
-  // Record Delivery for Sale ₹300 (5.0L @ ₹60/L)
-  await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/deliveries',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
-      customer_id: cust2.id,
-      center_id: 'c1',
+  // Deposit ₹230 advance
+  console.log('Depositing advance payment of ₹230...');
+  await fetch(`${BASE_URL}/payments`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      customer_id: cust3.id,
       date: testDate,
-      session: 'MORNING',
-      actual_qty: 5.0,
-      status: 'DELIVERED',
-    }
-  );
+      amount: 230,
+      payment_type: 'advance',
+      payment_mode: 'cash',
+    }),
+  });
 
-  // Record Advance ₹230
-  await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
-      customer_id: cust2.id,
+  // Record 5L delivery (3L morning + 2L evening) @ ₹60/L = ₹300 Sale
+  console.log('Recording delivery: 5L total @ ₹60/L = ₹300 Sale...');
+  await fetch(`${BASE_URL}/deliveries`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      customer_id: cust3.id,
       date: testDate,
-      amount: 230.0,
-      payment_type: 'ADVANCE',
-      payment_mode: 'CASH',
-      reference_id: 'CASH_ADV_230',
-      notes: 'Customer gave ₹230 advance',
-    }
-  );
-
-  const adj2Res = await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments/auto-adjust',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
-      customer_id: cust2.id,
+      session: 'morning',
+      actual_qty: 3,
+      status: 'delivered',
+    }),
+  });
+  await fetch(`${BASE_URL}/deliveries`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      customer_id: cust3.id,
       date: testDate,
-    }
-  );
+      session: 'evening',
+      actual_qty: 2,
+      status: 'delivered',
+    }),
+  });
 
-  console.log('  Auto-Adjustment Results:');
-  console.log(`    Sale:              ₹${adj2Res.data.sale}`);
-  console.log(`    Available Advance: ₹${adj2Res.data.available_advance}`);
-  console.log(`    Advance Used:      ₹${adj2Res.data.advance_used}`);
-  console.log(`    Remaining Advance: ₹${adj2Res.data.remaining_advance}`);
-  console.log(`    Remaining Sale:    ₹${adj2Res.data.remaining_sale}`);
+  // Check sales display & advance ledger
+  const salesPartRes = await fetch(`${BASE_URL}/sales?date=${testDate}&customer_id=${cust3.id}`, {
+    headers: authHeaders,
+  });
+  const saleItemPart = (await salesPartRes.json()).sales[0];
+
+  const advPartRes = await fetch(`${BASE_URL}/customers/${cust3.id}/advance`, {
+    headers: authHeaders,
+  });
+  const advPart = await advPartRes.json();
+
+  console.log('--- VERIFYING EXACT PROMPT EXAMPLE 3 ---');
+  console.log(`Advance Deposited: ₹230`);
+  console.log(`Sale:              ₹${saleItemPart.sale_amount} (Expected: ₹300)`);
+  console.log(`Advance Used:      ₹${saleItemPart.advance_used} (Expected: ₹230)`);
+  console.log(`Remaining Advance: ₹${advPart.advance_balance} (Expected: ₹0)`);
+  console.log(`Due Amount:        ₹${saleItemPart.due} (Expected: ₹70)`);
 
   if (
-    adj2Res.data.advance_used !== 230 ||
-    adj2Res.data.remaining_advance !== 0 ||
-    adj2Res.data.remaining_sale !== 70
+    saleItemPart.advance_used !== 230 ||
+    advPart.advance_balance !== 0 ||
+    saleItemPart.due !== 70
   ) {
-    throw new Error(`Test Case 2 mismatch! Expected Used ₹230, Remaining Advance ₹0, Remaining Sale ₹70`);
+    throw new Error('Example 3 calculation failed!');
   }
-  console.log('✓ PASS: Advance ₹230 + Sale ₹300 -> Used ₹230, Remaining ₹0, Remaining Sale ₹70');
+  console.log('✓ PASS: Partial advance adjustment verified (Advance Used: 230, Remaining amount/Due: 70)!');
 
-  // Customer now pays partial ₹50 of the remaining ₹70
-  console.log('  Customer pays ₹50 towards the remaining ₹70...');
-  await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
-      customer_id: cust2.id,
-      date: testDate,
-      amount: 50.0,
-      payment_type: 'DAILY_PAYMENT',
-      payment_mode: 'CASH',
-      reference_id: 'DAILY_PAY_50',
-    }
-  );
+  // 6. Test 4: Advance Ledger Traceability
+  console.log('\n6. Testing Advance Ledger Traceability (GET /api/customers/:id/advance)...');
+  console.log('Ledger entries for customer 3:', advPart.ledger);
+  if (!Array.isArray(advPart.ledger) || advPart.ledger.length < 2) {
+    throw new Error('Expected at least 2 ledger entries (1 credit, 1 adjustment)');
+  }
+  const creditEntry = advPart.ledger.find((l: any) => l.type === 'credit');
+  const adjEntry = advPart.ledger.find((l: any) => l.type === 'adjustment');
+  if (!creditEntry || !creditEntry.reference_id) {
+    throw new Error('Credit entry missing or reference_id not linked');
+  }
+  if (!adjEntry || !adjEntry.reference_id) {
+    throw new Error('Adjustment entry missing or reference_id not linked to sale');
+  }
+  console.log('Credit Entry:    ', creditEntry);
+  console.log('Adjustment Entry:', adjEntry);
+  console.log('✓ PASS: Every advance addition and adjustment is fully traceable!');
 
-  const sheet2 = await makeRequest({
-    hostname: '127.0.0.1',
-    port: 5000,
-    path: `/api/payments/daily-summary?date=${testDate}`,
-    method: 'GET',
+  // 7. Test 5: Validation on POST /api/payments
+  console.log('\n7. Testing validation on POST /api/payments...');
+  const invRes1 = await fetch(`${BASE_URL}/payments`, {
+    method: 'POST',
     headers: authHeaders,
+    body: JSON.stringify({}),
   });
+  console.log(`Empty body status: ${invRes1.status} (Expected: 400)`);
+  if (invRes1.status !== 400) throw new Error('Expected 400 for empty payment');
 
-  const rowCust2 = sheet2.data.summaries.find((s: any) => s.customer_id === cust2.id);
-  console.log(`  Daily Summary row for ${cust2.name}:`);
-  console.log(`    Paid: ₹${rowCust2?.paid}, Due: ₹${rowCust2?.due}, Status: ${rowCust2?.status}`);
-
-  // Remaining sale was 70, paid is 50 -> net due should be 20
-  if (rowCust2.due !== 20 || rowCust2.paid !== 50 || rowCust2.status !== 'PARTIAL') {
-    throw new Error(`Expected Due ₹20 and Status PARTIAL, got Due ₹${rowCust2.due}, Status ${rowCust2.status}`);
-  }
-  console.log('✓ PASS: Remaining ₹70 sale with ₹50 paid results in Due = ₹20 (Status: PARTIAL)');
-
-  // --------------------------------------------------------------------------
-  // TEST CASE 3: Sale ₹100 + Paid ₹100 -> Due ₹0
-  // --------------------------------------------------------------------------
-  console.log('\n4. Running Test Case 3: Sale ₹100 + Paid ₹100 -> Due ₹0...');
-  const cust3 = await createTestSupplier('Full Payment Supplier', `PAY100_${Date.now().toString().slice(-4)}`);
-
-  // Record delivery for Sale ₹100 (e.g. 2L Morning at ₹50/L)
-  // Or record daily payment of ₹100
-  await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
-      customer_id: cust3.id,
-      date: testDate,
-      amount: 100.0,
-      payment_type: 'DAILY_PAYMENT',
-      payment_mode: 'CASH',
-    }
-  );
-
-  // Auto adjust with sale = 100
-  const adj3Res = await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments/auto-adjust',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
-      customer_id: cust3.id,
-      date: testDate,
-      sale: 100.0,
-    }
-  );
-
-  const due3 = Math.max(0, adj3Res.data.remaining_sale - 100);
-  console.log(`  Sale: ₹100, Paid: ₹100 -> Calculated Due: ₹${due3}`);
-  if (due3 !== 0) {
-    throw new Error(`Expected Due ₹0, got ₹${due3}`);
-  }
-  console.log('✓ PASS: Sale ₹100 + Paid ₹100 -> Due ₹0');
-
-  // --------------------------------------------------------------------------
-  // TEST CASE 4: Sale ₹100 + Paid ₹50 -> Due ₹50
-  // --------------------------------------------------------------------------
-  console.log('\n5. Running Test Case 4: Sale ₹100 + Paid ₹50 -> Due ₹50...');
-  const cust4 = await createTestSupplier('Partial Payment Supplier', `PAY50_${Date.now().toString().slice(-4)}`);
-
-  await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
-      customer_id: cust4.id,
-      date: testDate,
-      amount: 50.0,
-      payment_type: 'DAILY_PAYMENT',
-      payment_mode: 'UPI',
-    }
-  );
-
-  const adj4Res = await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments/auto-adjust',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
-      customer_id: cust4.id,
-      date: testDate,
-      sale: 100.0,
-    }
-  );
-
-  const due4 = Math.max(0, adj4Res.data.remaining_sale - 50);
-  console.log(`  Sale: ₹100, Paid: ₹50 -> Calculated Due: ₹${due4}`);
-  if (due4 !== 50) {
-    throw new Error(`Expected Due ₹50, got ₹${due4}`);
-  }
-  console.log('✓ PASS: Sale ₹100 + Paid ₹50 -> Due ₹50');
-
-  // --------------------------------------------------------------------------
-  // TEST CASE 5: Advance Ledger Audit Trail Traceability & Duplicate Prevention
-  // --------------------------------------------------------------------------
-  console.log('\n6. Running Test Case 5: Advance Ledger Audit Trail & Idempotent Adjustment...');
-  const ledgerRes = await makeRequest({
-    hostname: '127.0.0.1',
-    port: 5000,
-    path: `/api/payments/advance-ledger?customer_id=${cust1.id}`,
-    method: 'GET',
+  const invRes2 = await fetch(`${BASE_URL}/payments`, {
+    method: 'POST',
     headers: authHeaders,
-  });
-
-  console.log(`  Ledger entries for ${cust1.name}: ${ledgerRes.data.length}`);
-  ledgerRes.data.forEach((entry: any) => {
-    console.log(`    [${entry.type}] Date: ${entry.date}, Amount: ₹${entry.amount}, Ref: ${entry.reference_id}`);
-  });
-
-  const addedEntries = ledgerRes.data.filter((e: any) => e.type === 'ADVANCE_ADDED');
-  const usedEntries = ledgerRes.data.filter((e: any) => e.type === 'ADVANCE_USED');
-
-  if (addedEntries.length !== 1 || addedEntries[0].amount !== 500) {
-    throw new Error('Expected 1 ADVANCE_ADDED entry of ₹500');
-  }
-  if (usedEntries.length !== 1 || usedEntries[0].amount !== 120) {
-    throw new Error('Expected 1 ADVANCE_USED entry of ₹120');
-  }
-
-  // Idempotency: Re-running auto-adjustment for same customer and date should NOT create duplicate
-  await makeRequest(
-    {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/payments/auto-adjust',
-      method: 'POST',
-      headers: authHeaders,
-    },
-    {
+    body: JSON.stringify({
       customer_id: cust1.id,
       date: testDate,
-      sale: 120.0,
-    }
-  );
-
-  const recheckLedger = await makeRequest({
-    hostname: '127.0.0.1',
-    port: 5000,
-    path: `/api/payments/advance-ledger?customer_id=${cust1.id}`,
-    method: 'GET',
-    headers: authHeaders,
+      amount: -10,
+      payment_type: 'daily',
+    }),
   });
+  console.log(`Negative amount status: ${invRes2.status} (Expected: 400)`);
+  if (invRes2.status !== 400) throw new Error('Expected 400 for negative amount');
 
-  const recheckUsed = recheckLedger.data.filter((e: any) => e.type === 'ADVANCE_USED');
-  if (recheckUsed.length !== 1) {
-    throw new Error(`DUPLICATE DETECTED! Expected exactly 1 ADVANCE_USED entry, found ${recheckUsed.length}`);
-  }
-  console.log('✓ PASS: Traceable advance ledger and duplicate prevention verified');
-
-  console.log('\n==================================================');
-  console.log('  ALL PHASE 5 TEST CASES PASSED WITH 100% SUCCESS ');
-  console.log('==================================================\n');
+  console.log('\n======================================================');
+  console.log('  SUCCESS: ALL PHASE 5 VERIFICATION CHECKS PASSED!    ');
+  console.log('  - Payments & advance_ledger tables operational       ');
+  console.log('  - Daily Payment & Partial Payment verified           ');
+  console.log('  - Customer Advance stored separately from cash       ');
+  console.log('  - Automatic Advance Adjustment executed by backend   ');
+  console.log('  - Advance Used, Remaining Advance & Due verified     ');
+  console.log('  - Advance ledger traceability verified               ');
+  console.log('  - POST /api/payments & GET /api/customers/:id/advance');
+  console.log('======================================================\n');
 }
 
 runPhase5Verification().catch((err) => {

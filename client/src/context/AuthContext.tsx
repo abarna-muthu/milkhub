@@ -1,17 +1,17 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole } from '../types';
-import { authApi } from '../services/api';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { User, LoginCredentials, DBStatus } from '../types';
+import { authApi, systemApi } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  isAdmin: boolean;
-  isStaff: boolean;
-  isInitializing: boolean;
-  login: (token: string, user: User) => void;
+  isLoading: boolean;
+  loginError: string | null;
+  dbStatus: DBStatus | null;
+  login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => Promise<void>;
-  switchRole: (role: UserRole) => void;
+  refreshDbStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,7 +22,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (saved) {
       try {
         return JSON.parse(saved);
-      } catch (e) {
+      } catch {
         return null;
       }
     }
@@ -33,64 +33,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return localStorage.getItem('milk_crm_token') || null;
   });
 
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [dbStatus, setDbStatus] = useState<DBStatus | null>(null);
 
-  // Verify authentication with backend on initial load / refresh
+  const refreshDbStatus = useCallback(async () => {
+    try {
+      const status = await systemApi.getDbStatus();
+      setDbStatus(status);
+    } catch (err: any) {
+      console.warn('[TiDB Diagnostic] Unable to fetch status:', err.message);
+    }
+  }, []);
+
+  // Validate existing session on application boot
   useEffect(() => {
-    const verifySession = async () => {
+    const initSession = async () => {
       const savedToken = localStorage.getItem('milk_crm_token');
       if (savedToken) {
         try {
           const freshUser = await authApi.me();
-          if (freshUser && freshUser.id) {
-            setUser(freshUser);
-            localStorage.setItem('milk_crm_user', JSON.stringify(freshUser));
-          } else {
-            // Invalid response
-            clearSession();
-          }
-        } catch (err: any) {
-          console.warn('[Auth] Session validation failed, resetting session to login:', err);
-          clearSession();
+          setUser(freshUser);
+          localStorage.setItem('milk_crm_user', JSON.stringify(freshUser));
+        } catch {
+          // Token invalid or expired
+          localStorage.removeItem('milk_crm_token');
+          localStorage.removeItem('milk_crm_user');
+          setUser(null);
+          setToken(null);
         }
-      } else {
-        clearSession();
       }
-      setIsInitializing(false);
+      setIsLoading(false);
+      refreshDbStatus();
     };
 
-    verifySession();
-  }, []);
+    initSession();
 
-  const clearSession = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('milk_crm_token');
-    localStorage.removeItem('milk_crm_user');
-  };
+    // Listen to unauthorized event
+    const handleUnauthorized = () => {
+      setUser(null);
+      setToken(null);
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
 
-  const login = (newToken: string, newUser: User) => {
-    setUser(newUser);
-    setToken(newToken);
-    localStorage.setItem('milk_crm_token', newToken);
-    localStorage.setItem('milk_crm_user', JSON.stringify(newUser));
-  };
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
+  }, [refreshDbStatus]);
 
-  const logout = async () => {
+  const login = async (credentials: LoginCredentials) => {
+    setLoginError(null);
+    setIsLoading(true);
     try {
-      await authApi.logout();
-    } catch (e) {
-      // Ignore network errors on logout
+      const response = await authApi.login(credentials);
+      setToken(response.token);
+      setUser(response.user);
+      localStorage.setItem('milk_crm_token', response.token);
+      localStorage.setItem('milk_crm_user', JSON.stringify(response.user));
+      await refreshDbStatus();
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.message || 'Login failed. Please check credentials.';
+      setLoginError(msg);
+      throw new Error(msg);
     } finally {
-      clearSession();
+      setIsLoading(false);
     }
   };
 
-  const switchRole = (newRole: UserRole) => {
-    if (user) {
-      const updated = { ...user, role: newRole };
-      setUser(updated);
-      localStorage.setItem('milk_crm_user', JSON.stringify(updated));
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await authApi.logout();
+    } catch {
+      // Ignore network errors on logout
+    } finally {
+      localStorage.removeItem('milk_crm_token');
+      localStorage.removeItem('milk_crm_user');
+      setUser(null);
+      setToken(null);
+      setIsLoading(false);
     }
   };
 
@@ -100,12 +121,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         token,
         isAuthenticated: !!user && !!token,
-        isAdmin: user?.role === 'admin' || user?.role === ('owner' as any),
-        isStaff: user?.role === 'staff',
-        isInitializing,
+        isLoading,
+        loginError,
+        dbStatus,
         login,
         logout,
-        switchRole,
+        refreshDbStatus,
       }}
     >
       {children}

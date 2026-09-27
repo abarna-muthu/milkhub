@@ -93,55 +93,55 @@ export const SettingsPage: React.FC = () => {
     },
   ];
 
-  const blueprintPhases = [
+  const coreModules = [
     {
-      phase: 1,
-      title: 'React Setup, Node API, TiDB Connection, Owner Auth',
-      status: 'Active & Verified',
+      module: 1,
+      name: 'Owner Security & Access',
+      status: 'Active',
       badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      desc: 'Express REST backend, TiDB schema, JWT authentication, owner credentials.',
+      desc: 'Owner authentication, session control, and encrypted credential verification.',
     },
     {
-      phase: 2,
-      title: 'Customer CRUD, Validation, Search & Filters',
-      status: 'Active & Verified',
+      module: 2,
+      name: 'Customer Management & Profiles',
+      status: 'Active',
       badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      desc: 'Customer master, morning/evening defaults, rate per litre, area, active/inactive filters.',
+      desc: 'Customer directory, morning/evening quotas, rates per litre, and area indexing.',
     },
     {
-      phase: 3,
-      title: 'Morning & Evening Delivery + Non-Destructive Actuals',
-      status: 'Active & Verified',
+      module: 3,
+      name: 'Daily Delivery Workflow',
+      status: 'Active',
       badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      desc: 'Date & session delivery sheets, 0L support, customer master default preservation.',
+      desc: 'Morning and evening delivery tracking, non-destructive quantity recording, and 0L handling.',
     },
     {
-      phase: 4,
-      title: 'Sales Calculation + Day-Wise Sales Sheet',
-      status: 'Active & Verified',
+      module: 4,
+      name: 'Automated Sales Calculation',
+      status: 'Active',
       badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      desc: 'Morning + Evening total litres × rate. Pure backend calculation with Node.js.',
+      desc: 'Morning + Evening total litres × customer milk rate calculated instantly.',
     },
     {
-      phase: 5,
-      title: 'Daily Payments + Advance Ledger + Auto-Adjustment',
-      status: 'Active & Verified',
+      module: 5,
+      name: 'Payments & Advance Ledger',
+      status: 'Active',
       badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      desc: 'Advance credit pool, automatic advance deductions, partial payments, due amounts.',
+      desc: 'Daily payment records, credit balance adjustments, and transparent transaction logs.',
     },
     {
-      phase: 6,
-      title: 'Customer History + Dashboard + Filters + Responsive UI',
-      status: 'Active & Verified',
+      module: 6,
+      name: 'Customer History & Analytics',
+      status: 'Active',
       badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      desc: 'Customer 8-column history ledger, monthly summary, workflow dashboard, responsive UI.',
+      desc: 'Complete customer transaction ledgers, monthly metrics, and operations overview.',
     },
     {
-      phase: 7,
-      title: 'Testing, Security, Validation & Deployment Readiness',
-      status: 'Active & Verified',
+      module: 7,
+      name: 'Business Rule Validation',
+      status: 'Active',
       badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      desc: 'All 7 critical test cases passed, security hardening verified, production build ready.',
+      desc: 'Automated checks ensuring math accuracy and strict financial rule enforcement.',
     },
   ];
 
@@ -154,13 +154,13 @@ export const SettingsPage: React.FC = () => {
             <span className="p-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-200">
               <Settings className="w-5 h-5" />
             </span>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">System Settings & Diagnostics</h1>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">System Settings & Status</h1>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-              Phase 1-7 Operational (Deployment Ready)
+              System Operational
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            System architectural verification, TiDB database health, authentication state, and blueprint compliance.
+            System architectural verification, database health, authentication state, and core business modules.
           </p>
         </div>
 
@@ -171,7 +171,7 @@ export const SettingsPage: React.FC = () => {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
           >
             <RefreshCw className="w-4 h-4 text-emerald-600" />
-            <span>Ping TiDB Database</span>
+            <span>Ping Database</span>
           </button>
         </div>
       </div>
@@ -252,8 +252,8 @@ export const SettingsPage: React.FC = () => {
                 <Database className="w-5 h-5" />
               </span>
               <div>
-                <h3 className="font-bold text-slate-900 text-sm">TiDB Database Engine</h3>
-                <p className="text-[11px] text-slate-500">Distributed SQL Architecture</p>
+                <h3 className="font-bold text-slate-900 text-sm">Database Engine</h3>
+                <p className="text-[11px] text-slate-500">Secure Cloud Data Store</p>
               </div>
             </div>
             <span
@@ -263,7 +263,7 @@ export const SettingsPage: React.FC = () => {
                   : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}
             >
-              {dbStatus?.connected ? 'TiDB Cloud Online' : 'Local In-Memory / SQLite Mode'}
+              {dbStatus?.connected ? 'Database Online' : 'Local Storage Mode'}
             </span>
           </div>
 
@@ -297,14 +297,14 @@ export const SettingsPage: React.FC = () => {
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
             <div className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
               <Info className="w-3.5 h-3.5 text-teal-600" />
-              <span>TiDB Resilience Guarantee</span>
+              <span>Database Resilience Guarantee</span>
             </div>
-            The backend features zero-downtime automatic fallback between TiDB TCP (port 4000) and local persistent storage. All data calculations and API contracts remain 100% identical.
+            The backend features zero-downtime automatic fallback between cloud database and local persistent storage. All calculations and operations remain 100% consistent.
           </div>
         </div>
       </div>
 
-      {/* Phase 7: Critical Test Cases Verification Strip */}
+      {/* Critical Business Rules Verification */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -313,7 +313,7 @@ export const SettingsPage: React.FC = () => {
             </span>
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                Phase 7 Critical Test Cases (PDF Specification)
+                Core Business Rules Verification
               </h2>
               <p className="text-xs text-slate-500">
                 Strict business rules verified automatically by the test suite
@@ -321,7 +321,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-            7 / 7 Test Cases Passed
+            7 / 7 Rules Verified
           </span>
         </div>
 
@@ -334,7 +334,7 @@ export const SettingsPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="text-[10px] font-black uppercase text-slate-400">
-                    Test Case {tc.id}
+                    Rule {tc.id}
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                     {tc.status}
@@ -348,7 +348,7 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Blueprint Compliance Tracker */}
+      {/* MilkHub Core Modules */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -357,33 +357,33 @@ export const SettingsPage: React.FC = () => {
             </span>
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                Developer Blueprint Specification Checklist
+                MilkHub Core Modules
               </h2>
-              <p className="text-xs text-slate-500">Strict adherence to PDF specification Phases 1 through 7</p>
+              <p className="text-xs text-slate-500">End-to-end milk distribution and financial operations</p>
             </div>
           </div>
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-            100% Phase 1-7 Implemented
+            All Modules Active
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {blueprintPhases.map((bp) => (
+          {coreModules.map((m) => (
             <div
-              key={bp.phase}
+              key={m.module}
               className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <span className="text-[10px] font-black uppercase text-slate-400">
-                    Phase {bp.phase}
+                    Module {m.module}
                   </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${bp.badge}`}>
-                    {bp.status}
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${m.badge}`}>
+                    {m.status}
                   </span>
                 </div>
-                <h4 className="font-bold text-xs text-slate-900 leading-snug">{bp.title}</h4>
-                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{bp.desc}</p>
+                <h4 className="font-bold text-xs text-slate-900 leading-snug">{m.name}</h4>
+                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{m.desc}</p>
               </div>
             </div>
           ))}

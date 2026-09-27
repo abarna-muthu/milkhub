@@ -86,9 +86,6 @@ export const SalesPage: React.FC = () => {
               <Receipt className="w-5 h-5" />
             </span>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Day-wise Sales</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-              Phase 4 Active
-            </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
             Automatic sales calculation: Morning Qty + Evening Qty = Total Litres • Total Litres × Milk Rate = Daily Sale.

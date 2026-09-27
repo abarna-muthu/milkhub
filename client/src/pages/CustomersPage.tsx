@@ -301,9 +301,6 @@ export const CustomersPage: React.FC = () => {
               <Users className="w-5 h-5" />
             </span>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Customer Directory</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-              Phase 2 Active
-            </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
             Complete Customer CRUD, real-time search by Name, Phone & Area, with Active/Inactive filters.
@@ -682,7 +679,7 @@ export const CustomersPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">Add New Customer</h3>
-                  <p className="text-[11px] text-slate-500">Strictly Phase 2 Customer Profile fields</p>
+                  <p className="text-[11px] text-slate-500">Customer profile and milk delivery preferences</p>
                 </div>
               </div>
               <button

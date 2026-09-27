@@ -164,70 +164,65 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   return (
     <div className="space-y-6">
       {/* Top Welcome & Operational Status Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-6 sm:p-8 border border-slate-800 shadow-xl">
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Phase 6 Operations Dashboard</span>
-              </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-semibold">
-                <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
-                <span>Owner: {user?.email}</span>
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Daily Milk Business Operations
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Real-time monitoring of daily deliveries, automatic sales calculations, advance adjustments, and payment collections.
-            </p>
+      <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/90 shadow-sm text-slate-900 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              <span>MilkHub Operations • Developed by GenZ Neural X</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Owner: {user?.email}</span>
+            </span>
           </div>
-
-          {/* Quick Date Selector & Refresh */}
-          <div className="flex flex-wrap items-center gap-2 bg-slate-800/80 p-2 rounded-2xl border border-slate-700/80 backdrop-blur-md">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-slate-700">
-              <Calendar className="w-4 h-4 text-emerald-400" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent text-xs font-bold text-white focus:outline-none"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedDate(todayStr)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                selectedDate === todayStr
-                  ? 'bg-emerald-500 text-slate-950 shadow-md'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={loadDashboardData}
-              disabled={isLoading}
-              title="Refresh dashboard metrics"
-              className="p-2 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-200 transition"
-            >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+            Daily Milk Business Operations
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
+            Real-time monitoring of daily deliveries, automated sales calculations, advance adjustments, and payment collections.
+          </p>
         </div>
 
-        {/* Ambient background decoration */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        {/* Quick Date Selector & Refresh */}
+        <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-slate-200 shadow-xs">
+            <Calendar className="w-4 h-4 text-emerald-600" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedDate(todayStr)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              selectedDate === todayStr
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+            }`}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={loadDashboardData}
+            disabled={isLoading}
+            title="Refresh dashboard metrics"
+            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 transition shadow-xs"
+          >
+            <RefreshCw className={`w-4 h-4 text-emerald-600 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
-      {/* CRM Workflow Stepper Strip */}
+      {/* Workflow Stepper Strip */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center justify-between">
-          <span>CRM Workflow Pipeline (PDF Specification)</span>
-          <span className="text-emerald-600 font-semibold lowercase">automated backend execution</span>
+          <span>Operations Workflow Pipeline</span>
+          <span className="text-emerald-700 font-semibold lowercase">automated calculations</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           <button
@@ -235,8 +230,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             onClick={() => onNavigate('customers')}
             className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 hover:border-emerald-300 text-left transition group"
           >
-            <div className="text-[10px] font-bold text-slate-400 group-hover:text-emerald-700">Step 1</div>
-            <div className="font-bold text-xs text-slate-900 group-hover:text-emerald-900 flex items-center justify-between mt-0.5">
+            <div className="font-bold text-xs text-slate-900 group-hover:text-emerald-900 flex items-center justify-between">
               <span>Customers</span>
               <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-emerald-600 transition group-hover:translate-x-0.5" />
             </div>
@@ -248,8 +242,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             onClick={() => onNavigate('deliveries-morning')}
             className="p-3 rounded-xl bg-slate-50 hover:bg-amber-50/50 border border-slate-200/80 hover:border-amber-300 text-left transition group"
           >
-            <div className="text-[10px] font-bold text-slate-400 group-hover:text-amber-700">Step 2</div>
-            <div className="font-bold text-xs text-slate-900 group-hover:text-amber-900 flex items-center justify-between mt-0.5">
+            <div className="font-bold text-xs text-slate-900 group-hover:text-amber-900 flex items-center justify-between">
               <span>Morning</span>
               <Sun className="w-3 h-3 text-amber-500" />
             </div>
@@ -261,8 +254,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             onClick={() => onNavigate('deliveries-evening')}
             className="p-3 rounded-xl bg-slate-50 hover:bg-indigo-50/50 border border-slate-200/80 hover:border-indigo-300 text-left transition group"
           >
-            <div className="text-[10px] font-bold text-slate-400 group-hover:text-indigo-700">Step 3</div>
-            <div className="font-bold text-xs text-slate-900 group-hover:text-indigo-900 flex items-center justify-between mt-0.5">
+            <div className="font-bold text-xs text-slate-900 group-hover:text-indigo-900 flex items-center justify-between">
               <span>Evening</span>
               <Moon className="w-3 h-3 text-indigo-500" />
             </div>
@@ -274,8 +266,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             onClick={() => onNavigate('sales')}
             className="p-3 rounded-xl bg-slate-50 hover:bg-teal-50/50 border border-slate-200/80 hover:border-teal-300 text-left transition group"
           >
-            <div className="text-[10px] font-bold text-slate-400 group-hover:text-teal-700">Step 4</div>
-            <div className="font-bold text-xs text-slate-900 group-hover:text-teal-900 flex items-center justify-between mt-0.5">
+            <div className="font-bold text-xs text-slate-900 group-hover:text-teal-900 flex items-center justify-between">
               <span>Daily Sales</span>
               <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-teal-600 transition group-hover:translate-x-0.5" />
             </div>
@@ -287,8 +278,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             onClick={() => onNavigate('payments')}
             className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 hover:border-emerald-300 text-left transition group"
           >
-            <div className="text-[10px] font-bold text-slate-400 group-hover:text-emerald-700">Step 5</div>
-            <div className="font-bold text-xs text-slate-900 group-hover:text-emerald-900 flex items-center justify-between mt-0.5">
+            <div className="font-bold text-xs text-slate-900 group-hover:text-emerald-900 flex items-center justify-between">
               <span>Payments</span>
               <CreditCard className="w-3 h-3 text-emerald-500" />
             </div>
@@ -300,8 +290,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             onClick={() => onNavigate('customers')}
             className="p-3 rounded-xl bg-slate-50 hover:bg-purple-50/50 border border-slate-200/80 hover:border-purple-300 text-left transition group"
           >
-            <div className="text-[10px] font-bold text-slate-400 group-hover:text-purple-700">Step 6</div>
-            <div className="font-bold text-xs text-slate-900 group-hover:text-purple-900 flex items-center justify-between mt-0.5">
+            <div className="font-bold text-xs text-slate-900 group-hover:text-purple-900 flex items-center justify-between">
               <span>Customer History</span>
               <History className="w-3 h-3 text-purple-500" />
             </div>

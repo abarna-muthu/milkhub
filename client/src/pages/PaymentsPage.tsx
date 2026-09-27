@@ -347,9 +347,6 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialTab = 'daily'
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               Payments & Advance Management
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-              Phase 5 & 6 Active
-            </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
             Track daily sales payments, automatic advance adjustments, customer credit balances, and traceable transaction logs.

@@ -7,7 +7,6 @@ import {
   Moon,
   CreditCard,
   Settings,
-  Database,
   ShieldCheck,
   LogOut,
   Milk,
@@ -28,47 +27,52 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   currentPath,
   onNavigate,
 }) => {
-  const { user, logout, dbStatus } = useAuth();
+  const { user, logout } = useAuth();
 
   if (!isOpen) return null;
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, phase: 'Phase 1' },
-    { id: 'customers', label: 'Customers', icon: <Users className="w-4 h-4" />, phase: 'Phase 2' },
-    { id: 'deliveries-morning', label: 'Morning Delivery', icon: <Sun className="w-4 h-4 text-amber-500" />, phase: 'Phase 3' },
-    { id: 'deliveries-evening', label: 'Evening Delivery', icon: <Moon className="w-4 h-4 text-indigo-400" />, phase: 'Phase 3' },
-    { id: 'sales', label: 'Day-wise Sales', icon: <Receipt className="w-4 h-4 text-emerald-400" />, phase: 'Phase 4' },
-    { id: 'payments', label: 'Payments & Advance', icon: <CreditCard className="w-4 h-4 text-emerald-400" />, phase: 'Phase 5' },
-    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" />, phase: 'Phase 6' },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'customers', label: 'Customers', icon: <Users className="w-4 h-4" /> },
+    { id: 'deliveries-morning', label: 'Morning Delivery', icon: <Sun className="w-4 h-4 text-amber-500" /> },
+    { id: 'deliveries-evening', label: 'Evening Delivery', icon: <Moon className="w-4 h-4 text-indigo-500" /> },
+    { id: 'sales', label: 'Day-wise Sales', icon: <Receipt className="w-4 h-4 text-teal-600" /> },
+    { id: 'payments', label: 'Payments & Advance', icon: <CreditCard className="w-4 h-4 text-emerald-600" /> },
+    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4 text-slate-500" /> },
   ];
 
   return (
     <div className="fixed inset-0 z-50 md:hidden flex">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
         onClick={onClose}
       />
 
       {/* Drawer */}
-      <div className="relative w-72 max-w-[80vw] bg-slate-900 text-slate-200 h-full flex flex-col shadow-2xl z-10">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+      <div className="relative w-72 max-w-[80vw] bg-white text-slate-800 h-full flex flex-col shadow-2xl z-10 border-r border-slate-200">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
-              <Milk className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold">
+              <Milk className="w-4 h-4 text-white" />
             </div>
-            <span className="font-extrabold text-white text-base">MILK CRM</span>
+            <div>
+              <span className="font-black text-slate-900 text-base">MilkHub</span>
+              <div className="text-[10px] text-emerald-700 font-semibold leading-none">
+                Developed by GenZ Neural X
+              </div>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-3 bg-emerald-950/40 border-b border-emerald-800/40 text-[11px] text-emerald-300">
+        <div className="p-3 bg-emerald-50/80 border-b border-emerald-100 text-[11px] text-emerald-800 font-medium">
           Customer has NO LOGIN. Owner is the primary system user.
         </div>
 
@@ -83,26 +87,25 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                   onNavigate(item.id);
                   onClose();
                 }}
-                className={`w-full flex items-center justify-between p-2.5 rounded-lg text-xs font-medium ${
+                className={`w-full flex items-center p-2.5 rounded-xl text-xs font-semibold ${
                   isCurrent
-                    ? 'bg-emerald-500 text-slate-950 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  {item.icon}
+                  <span className={isCurrent ? 'text-white' : ''}>{item.icon}</span>
                   <span>{item.label}</span>
                 </div>
-                <span className="text-[10px] opacity-70">{item.phase}</span>
               </button>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+        <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
           <div className="min-w-0">
-            <div className="text-xs font-bold text-white truncate">{user?.email}</div>
-            <div className="text-[10px] text-emerald-400">Owner Account</div>
+            <div className="text-xs font-bold text-slate-900 truncate">{user?.email}</div>
+            <div className="text-[10px] text-emerald-700 font-semibold">Owner Account</div>
           </div>
           <button
             type="button"
@@ -110,7 +113,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               logout();
               onClose();
             }}
-            className="p-2 text-rose-400 hover:bg-slate-800 rounded-lg"
+            className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition"
           >
             <LogOut className="w-4 h-4" />
           </button>

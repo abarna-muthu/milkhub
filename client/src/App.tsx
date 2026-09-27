@@ -27,15 +27,18 @@ function MainApp() {
   // While validating session token on load
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0a0f1d] text-white">
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-800">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center shadow-lg shadow-emerald-500/20 animate-pulse">
-            <Milk className="w-6 h-6 text-slate-950" />
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 animate-pulse">
+            <Milk className="w-6 h-6 text-white" />
           </div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
-            <Sparkles className="w-3.5 h-3.5 animate-spin" />
-            <span>Connecting to Milk CRM & TiDB...</span>
+          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+            <Sparkles className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+            <span>Connecting to MilkHub...</span>
           </div>
+          <span className="text-[11px] font-medium text-slate-400 mt-2">
+            Developed by GenZ Neural X
+          </span>
         </div>
       </div>
     );
@@ -97,7 +100,7 @@ function MainApp() {
                     {currentPath.replace('-', ' ')}
                   </h3>
                   <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 mb-4">
-                    Phase 1 through Phase 6 are fully active strictly according to the Milk Business CRM Blueprint.
+                    MilkHub management system is active and operational.
                   </p>
                   <button
                     type="button"

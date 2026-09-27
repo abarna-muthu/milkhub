@@ -54,7 +54,7 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
     setIsLoading(true);
     try {
       const data = await deliveryApi.getDeliveries(selectedDate, session);
-      setDeliveryItems(data.deliveries);
+      setDeliveryItems(Array.isArray(data?.deliveries) ? data.deliveries : []);
       setHasUnsavedChanges(false);
     } catch (err: any) {
       console.error('Failed to load deliveries:', err);
@@ -203,14 +203,15 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
 
   // Dynamic live summary
   const summary = useMemo(() => {
-    const totalQty = deliveryItems.reduce(
-      (sum, item) => sum + (Number(item.actual_qty) || 0),
+    const items = deliveryItems || [];
+    const totalQty = items.reduce(
+      (sum, item) => sum + (Number(item?.actual_qty) || 0),
       0
     );
-    const deliveredCount = deliveryItems.filter((i) => i.status === 'delivered').length;
-    const noMilkCount = deliveryItems.filter((i) => i.status === 'no_milk').length;
-    const defaultTotal = deliveryItems.reduce(
-      (sum, item) => sum + (Number(item.default_qty) || 0),
+    const deliveredCount = items.filter((i) => i?.status === 'delivered').length;
+    const noMilkCount = items.filter((i) => i?.status === 'no_milk').length;
+    const defaultTotal = items.reduce(
+      (sum, item) => sum + (Number(item?.default_qty) || 0),
       0
     );
 
@@ -219,7 +220,7 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
       defaultTotal: Math.round(defaultTotal * 100) / 100,
       deliveredCount,
       noMilkCount,
-      totalCustomers: deliveryItems.length,
+      totalCustomers: items.length,
     };
   }, [deliveryItems]);
 

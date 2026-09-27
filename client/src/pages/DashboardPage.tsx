@@ -56,8 +56,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     setIsLoading(true);
     try {
       // 1. Fetch Customers
-      const custRes = await customerApi.getAll({ status: 'active' });
-      const activeCusts = custRes.customers;
+      const custRes = await customerApi.getAll({ status: 'active' }).catch(() => ({ customers: [] }));
+      const activeCusts = Array.isArray(custRes?.customers) ? custRes.customers : [];
       setCustomers(activeCusts);
 
       // 2. Fetch Morning & Evening Deliveries in parallel
@@ -68,23 +68,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         paymentApi.getPayments({ date: selectedDate }).catch(() => ({ payments: [] })),
       ]);
 
-      setMorningDeliveries(mRes.deliveries);
-      setEveningDeliveries(eRes.deliveries);
-      setDayWiseSales(salesRes.sales);
-      setPayments(payRes.payments);
+      setMorningDeliveries(Array.isArray(mRes?.deliveries) ? mRes.deliveries : []);
+      setEveningDeliveries(Array.isArray(eRes?.deliveries) ? eRes.deliveries : []);
+      setDayWiseSales(Array.isArray(salesRes?.sales) ? salesRes.sales : []);
+      setPayments(Array.isArray(payRes?.payments) ? payRes.payments : []);
 
       // 3. Fetch advances for customer pool
       const advMap: Record<string, CustomerAdvanceInfo> = {};
-      await Promise.all(
-        activeCusts.map(async (c) => {
-          try {
-            const adv = await paymentApi.getCustomerAdvance(c.id);
-            advMap[c.id] = adv;
-          } catch (e) {
-            // ignore
-          }
-        })
-      );
+      if (Array.isArray(activeCusts)) {
+        await Promise.all(
+          activeCusts.map(async (c) => {
+            try {
+              const adv = await paymentApi.getCustomerAdvance(c.id);
+              if (adv) advMap[c.id] = adv;
+            } catch (e) {
+              // ignore
+            }
+          })
+        );
+      }
       setCustomerAdvances(advMap);
     } catch (err: any) {
       console.error('Failed to load dashboard metrics:', err);
@@ -100,11 +102,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
   // Aggregated KPI Calculations
   const morningLitres = useMemo(() => {
-    return morningDeliveries.reduce((sum, d) => sum + (Number(d.actual_qty) || 0), 0);
+    return (morningDeliveries || []).reduce((sum, d) => sum + (Number(d?.actual_qty) || 0), 0);
   }, [morningDeliveries]);
 
   const eveningLitres = useMemo(() => {
-    return eveningDeliveries.reduce((sum, d) => sum + (Number(d.actual_qty) || 0), 0);
+    return (eveningDeliveries || []).reduce((sum, d) => sum + (Number(d?.actual_qty) || 0), 0);
   }, [eveningDeliveries]);
 
   const totalLitresToday = useMemo(() => {
@@ -112,51 +114,51 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   }, [morningLitres, eveningLitres]);
 
   const totalSalesToday = useMemo(() => {
-    return dayWiseSales.reduce((sum, s) => sum + (Number(s.sale_amount) || 0), 0);
+    return (dayWiseSales || []).reduce((sum, s) => sum + (Number(s?.sale_amount) || 0), 0);
   }, [dayWiseSales]);
 
   const totalAdvanceUsedToday = useMemo(() => {
-    return dayWiseSales.reduce((sum, s) => sum + (Number(s.advance_used) || 0), 0);
+    return (dayWiseSales || []).reduce((sum, s) => sum + (Number(s?.advance_used) || 0), 0);
   }, [dayWiseSales]);
 
   const totalPaidToday = useMemo(() => {
-    return payments
-      .filter((p) => p.payment_type === 'daily')
-      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    return (payments || [])
+      .filter((p) => p?.payment_type === 'daily')
+      .reduce((sum, p) => sum + (Number(p?.amount) || 0), 0);
   }, [payments]);
 
   const totalAdvanceReceivedToday = useMemo(() => {
-    return payments
-      .filter((p) => p.payment_type === 'advance')
-      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    return (payments || [])
+      .filter((p) => p?.payment_type === 'advance')
+      .reduce((sum, p) => sum + (Number(p?.amount) || 0), 0);
   }, [payments]);
 
   const totalDueToday = useMemo(() => {
-    return dayWiseSales.reduce((sum, s) => sum + (Number(s.due) || 0), 0);
+    return (dayWiseSales || []).reduce((sum, s) => sum + (Number(s?.due) || 0), 0);
   }, [dayWiseSales]);
 
   const totalAdvanceBalancePool = useMemo(() => {
-    return Object.values(customerAdvances).reduce(
-      (sum, a) => sum + (Number(a.advance_balance) || 0),
+    return Object.values(customerAdvances || {}).reduce(
+      (sum, a) => sum + (Number(a?.advance_balance) || 0),
       0
     );
   }, [customerAdvances]);
 
   // Session Stats
   const morningDeliveredCount = useMemo(() => {
-    return morningDeliveries.filter((d) => d.status === 'delivered' && d.actual_qty > 0).length;
+    return (morningDeliveries || []).filter((d) => d?.status === 'delivered' && (Number(d?.actual_qty) || 0) > 0).length;
   }, [morningDeliveries]);
 
   const morningNoMilkCount = useMemo(() => {
-    return morningDeliveries.filter((d) => d.status === 'no_milk' || d.actual_qty === 0).length;
+    return (morningDeliveries || []).filter((d) => d?.status === 'no_milk' || (Number(d?.actual_qty) || 0) === 0).length;
   }, [morningDeliveries]);
 
   const eveningDeliveredCount = useMemo(() => {
-    return eveningDeliveries.filter((d) => d.status === 'delivered' && d.actual_qty > 0).length;
+    return (eveningDeliveries || []).filter((d) => d?.status === 'delivered' && (Number(d?.actual_qty) || 0) > 0).length;
   }, [eveningDeliveries]);
 
   const eveningNoMilkCount = useMemo(() => {
-    return eveningDeliveries.filter((d) => d.status === 'no_milk' || d.actual_qty === 0).length;
+    return (eveningDeliveries || []).filter((d) => d?.status === 'no_milk' || (Number(d?.actual_qty) || 0) === 0).length;
   }, [eveningDeliveries]);
 
   return (

@@ -92,29 +92,32 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialTab = 'daily'
     setIsLoading(true);
     try {
       // 1. Load active customers
-      const custList = await customerApi.getAll({ status: 'active' });
-      setCustomers(custList.customers);
+      const custList = await customerApi.getAll({ status: 'active' }).catch(() => ({ customers: [] }));
+      const activeCusts = Array.isArray(custList?.customers) ? custList.customers : [];
+      setCustomers(activeCusts);
 
       // 2. Load sales for selected date to know due amounts
-      const salesData = await salesApi.getDayWiseSales(selectedDate);
-      setTodaySales(salesData.sales);
+      const salesData = await salesApi.getDayWiseSales(selectedDate).catch(() => ({ sales: [] }));
+      setTodaySales(Array.isArray(salesData?.sales) ? salesData.sales : []);
 
       // 3. Load payments for selected date
-      const payData = await paymentApi.getPayments({ date: selectedDate });
-      setPaymentsList(payData.payments);
+      const payData = await paymentApi.getPayments({ date: selectedDate }).catch(() => ({ payments: [] }));
+      setPaymentsList(Array.isArray(payData?.payments) ? payData.payments : []);
 
       // 4. Fetch advance balances for all active customers
       const advMap: Record<string, CustomerAdvanceInfo> = {};
-      await Promise.all(
-        custList.customers.map(async (c) => {
-          try {
-            const adv = await paymentApi.getCustomerAdvance(c.id);
-            advMap[c.id] = adv;
-          } catch (e) {
-            // Ignore individual failure
-          }
-        })
-      );
+      if (Array.isArray(activeCusts)) {
+        await Promise.all(
+          activeCusts.map(async (c) => {
+            try {
+              const adv = await paymentApi.getCustomerAdvance(c.id);
+              if (adv) advMap[c.id] = adv;
+            } catch (e) {
+              // Ignore individual failure
+            }
+          })
+        );
+      }
       setCustomerAdvances(advMap);
     } catch (err: any) {
       console.error('Failed to load payments data:', err);
@@ -130,24 +133,24 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialTab = 'daily'
 
   // Derived KPI metrics
   const totalDailyCashCollectedToday = useMemo(() => {
-    return paymentsList
-      .filter((p) => p.payment_type === 'daily')
-      .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    return (paymentsList || [])
+      .filter((p) => p?.payment_type === 'daily')
+      .reduce((acc, p) => acc + (Number(p?.amount) || 0), 0);
   }, [paymentsList]);
 
   const totalAdvanceReceivedToday = useMemo(() => {
-    return paymentsList
-      .filter((p) => p.payment_type === 'advance')
-      .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    return (paymentsList || [])
+      .filter((p) => p?.payment_type === 'advance')
+      .reduce((acc, p) => acc + (Number(p?.amount) || 0), 0);
   }, [paymentsList]);
 
   const totalOutstandingDueToday = useMemo(() => {
-    return todaySales.reduce((acc, s) => acc + (Number(s.due) || 0), 0);
+    return (todaySales || []).reduce((acc, s) => acc + (Number(s?.due) || 0), 0);
   }, [todaySales]);
 
   const totalAdvanceBalanceAllCustomers = useMemo(() => {
-    return Object.values(customerAdvances).reduce(
-      (acc, a) => acc + (Number(a.advance_balance) || 0),
+    return Object.values(customerAdvances || {}).reduce(
+      (acc, a) => acc + (Number(a?.advance_balance) || 0),
       0
     );
   }, [customerAdvances]);

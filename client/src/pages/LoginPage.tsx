@@ -241,7 +241,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         {/* Footer */}
         <p className="mt-4 text-center text-xs text-slate-500 font-medium">
-          MilkHub CRM • Production Node.js + React + TiDB
+          MilkHub • Developed by Gen Z Neural-X
         </p>
       </div>
     </div>

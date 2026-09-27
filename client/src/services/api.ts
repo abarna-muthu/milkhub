@@ -59,7 +59,13 @@ api.interceptors.response.use(
 // Auth
 export const authApi = {
   login: async (email: string, password: string) => {
-    const res = await api.post('/auth/login', { email, password });
+    const cleanEmail = email.trim();
+    const res = await api.post('/auth/login', {
+      email: cleanEmail,
+      identifier: cleanEmail,
+      username: cleanEmail,
+      password,
+    });
     return res.data;
   },
   logout: async () => {

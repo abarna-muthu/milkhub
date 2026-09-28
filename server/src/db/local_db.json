@@ -1,0 +1,92 @@
+{
+  "customers": [
+    {
+      "id": "cust_1790583168353_ycqt",
+      "name": "MUTHU",
+      "phone": "6893746830",
+      "address": "JDUGRNKD",
+      "area": "SRIVI",
+      "default_morning_qty": 1,
+      "default_evening_qty": 1,
+      "rate": 60,
+      "start_date": "2026-09-28",
+      "status": "active",
+      "created_at": "2026-09-28T08:12:48.353Z",
+      "updated_at": "2026-09-28T08:12:48.353Z"
+    },
+    {
+      "id": "cust_001",
+      "name": "Muthu Kumar",
+      "phone": "9876543210",
+      "address": "12 Bazaar Street",
+      "area": "North Ward",
+      "default_morning_qty": 2,
+      "default_evening_qty": 1.5,
+      "rate": 58,
+      "start_date": "2026-01-10",
+      "status": "active",
+      "created_at": "2026-01-10T06:00:00.000Z",
+      "updated_at": "2026-01-10T06:00:00.000Z"
+    },
+    {
+      "id": "cust_002",
+      "name": "Priya Selvam",
+      "phone": "9842109876",
+      "address": "45 Temple Road",
+      "area": "East Gate",
+      "default_morning_qty": 1,
+      "default_evening_qty": 1,
+      "rate": 60,
+      "start_date": "2026-02-01",
+      "status": "active",
+      "created_at": "2026-02-01T06:00:00.000Z",
+      "updated_at": "2026-02-01T06:00:00.000Z"
+    },
+    {
+      "id": "cust_003",
+      "name": "Rajesh Kannan",
+      "phone": "9789012345",
+      "address": "8 Gandhi Nagar",
+      "area": "North Ward",
+      "default_morning_qty": 3.5,
+      "default_evening_qty": 2,
+      "rate": 56,
+      "start_date": "2026-02-15",
+      "status": "active",
+      "created_at": "2026-02-15T06:00:00.000Z",
+      "updated_at": "2026-02-15T06:00:00.000Z"
+    },
+    {
+      "id": "cust_004",
+      "name": "Anitha Ramesh",
+      "phone": "9944123456",
+      "address": "21 Lake View",
+      "area": "South Extension",
+      "default_morning_qty": 1.5,
+      "default_evening_qty": 0,
+      "rate": 60,
+      "start_date": "2026-03-01",
+      "status": "inactive",
+      "created_at": "2026-03-01T06:00:00.000Z",
+      "updated_at": "2026-03-01T06:00:00.000Z"
+    },
+    {
+      "id": "cust_005",
+      "name": "Senthil Nathan",
+      "phone": "9865123987",
+      "address": "77 Anna Salai",
+      "area": "West End",
+      "default_morning_qty": 2.5,
+      "default_evening_qty": 2.5,
+      "rate": 62,
+      "start_date": "2026-03-10",
+      "status": "active",
+      "created_at": "2026-03-10T06:00:00.000Z",
+      "updated_at": "2026-03-10T06:00:00.000Z"
+    }
+  ],
+  "deliveries": [],
+  "sales": [],
+  "payments": [],
+  "advanceLedger": []
+}

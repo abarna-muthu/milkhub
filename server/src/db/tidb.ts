@@ -1,6 +1,13 @@
 import mysql, { Pool, PoolOptions } from 'mysql2/promise';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { hashPassword } from '../utils/security.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const LOCAL_STORE_PATH = path.join(__dirname, 'local_db.json');
 import {
   User,
   DBStatus,
@@ -136,6 +143,48 @@ class TiDBService {
 
   constructor() {
     this.createPool();
+    this.loadFallbackData();
+  }
+
+  private loadFallbackData() {
+    try {
+      if (fs.existsSync(LOCAL_STORE_PATH)) {
+        const raw = fs.readFileSync(LOCAL_STORE_PATH, 'utf-8');
+        const data = JSON.parse(raw);
+        if (Array.isArray(data.customers) && data.customers.length > 0) {
+          this.fallbackCustomers = data.customers;
+        }
+        if (Array.isArray(data.deliveries) && data.deliveries.length > 0) {
+          this.fallbackDeliveries = data.deliveries;
+        }
+        if (Array.isArray(data.sales) && data.sales.length > 0) {
+          this.fallbackSales = data.sales;
+        }
+        if (Array.isArray(data.payments) && data.payments.length > 0) {
+          this.fallbackPayments = data.payments;
+        }
+        if (Array.isArray(data.advanceLedger) && data.advanceLedger.length > 0) {
+          this.fallbackAdvanceLedger = data.advanceLedger;
+        }
+      }
+    } catch (err: any) {
+      console.warn('[TiDB] Failed to load local fallback data:', err.message);
+    }
+  }
+
+  private saveFallbackData() {
+    try {
+      const data = {
+        customers: this.fallbackCustomers,
+        deliveries: this.fallbackDeliveries,
+        sales: this.fallbackSales,
+        payments: this.fallbackPayments,
+        advanceLedger: this.fallbackAdvanceLedger,
+      };
+      fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (err: any) {
+      console.warn('[TiDB] Failed to persist local fallback data:', err.message);
+    }
   }
 
   private createPool() {
@@ -530,6 +579,7 @@ class TiDBService {
     }
 
     this.fallbackCustomers.unshift(newCustomer);
+    this.saveFallbackData();
     return newCustomer;
   }
 
@@ -591,6 +641,7 @@ class TiDBService {
     } else {
       this.fallbackCustomers.unshift(updated);
     }
+    this.saveFallbackData();
     return updated;
   }
 

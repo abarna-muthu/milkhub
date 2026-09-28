@@ -9,6 +9,46 @@ const router = Router();
 router.use(authMiddleware);
 
 /**
+ * Robust date normalizer: converts YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, etc. to standard YYYY-MM-DD
+ */
+export function normalizeDate(dateVal: any): string | null {
+  if (!dateVal) return null;
+  const s = String(dateVal).trim().split('T')[0];
+  if (!s) return null;
+
+  // Pattern: YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = Number(ymdMatch[1]);
+    const month = Number(ymdMatch[2]);
+    const day = Number(ymdMatch[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  // Pattern: DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+  const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dmyMatch) {
+    const day = Number(dmyMatch[1]);
+    const month = Number(dmyMatch[2]);
+    const year = Number(dmyMatch[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  // Fallback to Date.parse
+  const parsed = Date.parse(s);
+  if (!isNaN(parsed)) {
+    const d = new Date(parsed);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  return null;
+}
+
+/**
  * Validation helper for customer data
  */
 function validateCustomerPayload(
@@ -73,9 +113,11 @@ function validateCustomerPayload(
 
   // Start Date validation
   if (!isUpdate || body.start_date !== undefined) {
-    if (!body.start_date || isNaN(Date.parse(body.start_date))) {
-      return { valid: false, error: 'Valid start date (YYYY-MM-DD) is required', field: 'start_date' };
+    const normalized = normalizeDate(body.start_date);
+    if (!normalized) {
+      return { valid: false, error: 'Valid start date (YYYY-MM-DD or DD-MM-YYYY) is required', field: 'start_date' };
     }
+    body.start_date = normalized;
   }
 
   // Status validation
@@ -127,14 +169,14 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const payload: CreateCustomerDTO = {
-      name: req.body.name,
-      phone: req.body.phone,
-      address: req.body.address,
-      area: req.body.area,
+      name: req.body.name?.trim(),
+      phone: req.body.phone?.trim(),
+      address: req.body.address?.trim(),
+      area: req.body.area?.trim(),
       default_morning_qty: Number(req.body.default_morning_qty) || 0,
       default_evening_qty: Number(req.body.default_evening_qty) || 0,
       rate: Number(req.body.rate),
-      start_date: String(req.body.start_date).split('T')[0],
+      start_date: normalizeDate(req.body.start_date) || String(req.body.start_date).split('T')[0],
       status: (req.body.status as CustomerStatus) || 'active',
     };
 
@@ -147,7 +189,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     });
   } catch (err: any) {
     console.error('Error creating customer:', err);
-    res.status(500).json({ error: 'Failed to create customer' });
+    res.status(500).json({ error: err.message || 'Failed to create customer' });
   }
 });
 
@@ -206,7 +248,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
       updateData.default_evening_qty = Number(req.body.default_evening_qty);
     if (req.body.rate !== undefined) updateData.rate = Number(req.body.rate);
     if (req.body.start_date !== undefined)
-      updateData.start_date = String(req.body.start_date).split('T')[0];
+      updateData.start_date = normalizeDate(req.body.start_date) || String(req.body.start_date).split('T')[0];
     if (req.body.status !== undefined) updateData.status = req.body.status;
 
     const updated = await tidb.updateCustomer(id, updateData);
@@ -218,7 +260,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
     });
   } catch (err: any) {
     console.error('Error updating customer:', err);
-    res.status(500).json({ error: 'Failed to update customer' });
+    res.status(500).json({ error: err.message || 'Failed to update customer' });
   }
 });
 

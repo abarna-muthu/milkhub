@@ -25,6 +25,46 @@ import { Customer, CreateCustomerDTO, UpdateCustomerDTO, CustomerStatus, Custome
 import { customerApi } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
+/**
+ * Normalizes user-entered dates (YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, etc.) to standard ISO YYYY-MM-DD
+ */
+export function normalizeDate(dateVal: any): string | null {
+  if (!dateVal) return null;
+  const s = String(dateVal).trim().split('T')[0];
+  if (!s) return null;
+
+  // Pattern: YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = Number(ymdMatch[1]);
+    const month = Number(ymdMatch[2]);
+    const day = Number(ymdMatch[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  // Pattern: DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+  const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dmyMatch) {
+    const day = Number(dmyMatch[1]);
+    const month = Number(dmyMatch[2]);
+    const year = Number(dmyMatch[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  // Fallback to Date.parse
+  const parsed = Date.parse(s);
+  if (!isNaN(parsed)) {
+    const d = new Date(parsed);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  return null;
+}
+
 export const CustomersPage: React.FC = () => {
   const { showToast } = useToast();
 
@@ -189,8 +229,9 @@ export const CustomersPage: React.FC = () => {
       errors.rate = 'Milk rate per litre must be greater than 0';
     }
 
-    if (!data.start_date || isNaN(Date.parse(data.start_date))) {
-      errors.start_date = 'Valid start date is required';
+    const normDate = normalizeDate(data.start_date);
+    if (!normDate) {
+      errors.start_date = 'Valid start date is required (DD-MM-YYYY or YYYY-MM-DD)';
     }
 
     return errors;
@@ -207,9 +248,22 @@ export const CustomersPage: React.FC = () => {
     setAddErrors({});
     setIsSubmitting(true);
 
+    const normalizedDate = normalizeDate(addForm.start_date) || addForm.start_date;
+    const cleanPayload: CreateCustomerDTO = {
+      name: addForm.name.trim(),
+      phone: addForm.phone.trim(),
+      address: addForm.address.trim(),
+      area: addForm.area.trim(),
+      default_morning_qty: Number(addForm.default_morning_qty) || 0,
+      default_evening_qty: Number(addForm.default_evening_qty) || 0,
+      rate: Number(addForm.rate) || 0,
+      start_date: normalizedDate,
+      status: addForm.status || 'active',
+    };
+
     try {
-      await customerApi.create(addForm);
-      showToast(`Customer '${addForm.name}' added successfully!`, 'success');
+      const created = await customerApi.create(cleanPayload);
+      showToast(`Customer '${created.name || cleanPayload.name}' added successfully!`, 'success');
       setIsAddModalOpen(false);
       // Reset form
       setAddForm({
@@ -223,9 +277,15 @@ export const CustomersPage: React.FC = () => {
         start_date: new Date().toISOString().split('T')[0],
         status: 'active',
       });
-      loadCustomers();
+      await loadCustomers();
     } catch (err: any) {
-      showToast(err.response?.data?.error || 'Failed to create customer', 'error');
+      console.error('Customer creation error:', err);
+      const backendError = err.response?.data?.error || err.message || 'Failed to create customer';
+      const backendField = err.response?.data?.field;
+      if (backendField) {
+        setAddErrors((prev) => ({ ...prev, [backendField]: backendError }));
+      }
+      showToast(backendError, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -261,16 +321,35 @@ export const CustomersPage: React.FC = () => {
     setEditErrors({});
     setIsSubmitting(true);
 
+    const normalizedDate = editForm.start_date ? (normalizeDate(editForm.start_date) || editForm.start_date) : undefined;
+    const cleanPayload: UpdateCustomerDTO = {
+      ...editForm,
+      name: editForm.name !== undefined ? editForm.name.trim() : undefined,
+      phone: editForm.phone !== undefined ? editForm.phone.trim() : undefined,
+      address: editForm.address !== undefined ? editForm.address.trim() : undefined,
+      area: editForm.area !== undefined ? editForm.area.trim() : undefined,
+      ...(normalizedDate ? { start_date: normalizedDate } : {}),
+      default_morning_qty: editForm.default_morning_qty !== undefined ? Number(editForm.default_morning_qty) : undefined,
+      default_evening_qty: editForm.default_evening_qty !== undefined ? Number(editForm.default_evening_qty) : undefined,
+      rate: editForm.rate !== undefined ? Number(editForm.rate) : undefined,
+    };
+
     try {
-      const updated = await customerApi.update(editingCustomer.id, editForm);
+      const updated = await customerApi.update(editingCustomer.id, cleanPayload);
       showToast(`Customer '${updated.name}' updated successfully!`, 'success');
       setEditingCustomer(null);
       if (viewingCustomer && viewingCustomer.id === editingCustomer.id) {
         setViewingCustomer(updated);
       }
-      loadCustomers();
+      await loadCustomers();
     } catch (err: any) {
-      showToast(err.response?.data?.error || 'Failed to update customer', 'error');
+      console.error('Customer update error:', err);
+      const backendError = err.response?.data?.error || err.message || 'Failed to update customer';
+      const backendField = err.response?.data?.field;
+      if (backendField) {
+        setEditErrors((prev) => ({ ...prev, [backendField]: backendError }));
+      }
+      showToast(backendError, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -837,8 +916,13 @@ export const CustomersPage: React.FC = () => {
                     type="date"
                     value={addForm.start_date}
                     onChange={(e) => setAddForm({ ...addForm, start_date: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl text-xs border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    className={`w-full px-3.5 py-2 rounded-xl text-xs border ${
+                      addErrors.start_date ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 bg-slate-50'
+                    } focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500`}
                   />
+                  {addErrors.start_date && (
+                    <p className="text-[10px] text-rose-500 mt-1 font-medium">{addErrors.start_date}</p>
+                  )}
                 </div>
               </div>
 
@@ -1234,8 +1318,13 @@ export const CustomersPage: React.FC = () => {
                     type="date"
                     value={editForm.start_date || ''}
                     onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl text-xs border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    className={`w-full px-3.5 py-2 rounded-xl text-xs border ${
+                      editErrors.start_date ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 bg-slate-50'
+                    } focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500`}
                   />
+                  {editErrors.start_date && (
+                    <p className="text-[10px] text-rose-500 mt-1 font-medium">{editErrors.start_date}</p>
+                  )}
                 </div>
               </div>
 

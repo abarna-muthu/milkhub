@@ -22,8 +22,8 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    if (process.env.NODE_ENV !== 'production' && req.path.startsWith('/api')) {
-      console.log(`[API] ${req.method} ${req.path} -> ${res.statusCode} (${duration}ms)`);
+    if (process.env.NODE_ENV !== 'production' && (req.originalUrl.startsWith('/api') || req.path.startsWith('/api'))) {
+      console.log(`[API] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${duration}ms)`);
     }
   });
   next();
@@ -89,11 +89,11 @@ async function startServer() {
   console.log('--- Initializing Milk Business CRM Backend (Phase 1) ---');
   await tidb.initDatabase();
 
-  app.listen(PORT, () => {
-    console.log(`[MilkHub Server] Running on http://localhost:${PORT}`);
-    console.log(`[Auth API] POST http://localhost:${PORT}/api/auth/login`);
-    console.log(`[Health API] GET http://localhost:${PORT}/api/health`);
-    console.log(`[DB Status] GET http://localhost:${PORT}/api/db/status`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[MilkHub Server] Running on http://127.0.0.1:${PORT} (0.0.0.0)`);
+    console.log(`[Auth API] POST http://127.0.0.1:${PORT}/api/auth/login`);
+    console.log(`[Health API] GET http://127.0.0.1:${PORT}/api/health`);
+    console.log(`[DB Status] GET http://127.0.0.1:${PORT}/api/db/status`);
     console.log(`[Blueprint] Customer has NO LOGIN • Owner is the primary system user`);
   });
 }

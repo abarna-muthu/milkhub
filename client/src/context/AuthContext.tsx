@@ -55,16 +55,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const freshUser = await authApi.me();
           setUser(freshUser);
           localStorage.setItem('milk_crm_user', JSON.stringify(freshUser));
-        } catch {
-          // Token invalid or expired
-          localStorage.removeItem('milk_crm_token');
-          localStorage.removeItem('milk_crm_user');
-          setUser(null);
-          setToken(null);
+        } catch (err: any) {
+          // Only clear if 401 Unauthorized, preserve on temporary network unreachable
+          if (err.response?.status === 401) {
+            localStorage.removeItem('milk_crm_token');
+            localStorage.removeItem('milk_crm_user');
+            setUser(null);
+            setToken(null);
+          } else {
+            console.warn('[Auth] Server unreachable during session init:', err.message);
+          }
         }
       }
       setIsLoading(false);
-      refreshDbStatus();
+      refreshDbStatus().catch(() => {});
     };
 
     initSession();
@@ -83,20 +87,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (credentials: LoginCredentials) => {
     setLoginError(null);
-    setIsLoading(true);
     try {
       const response = await authApi.login(credentials);
       setToken(response.token);
       setUser(response.user);
       localStorage.setItem('milk_crm_token', response.token);
       localStorage.setItem('milk_crm_user', JSON.stringify(response.user));
-      await refreshDbStatus();
+      refreshDbStatus().catch(() => {});
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Login failed. Please check credentials.';
       setLoginError(msg);
       throw new Error(msg);
-    } finally {
-      setIsLoading(false);
     }
   };
 

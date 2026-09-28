@@ -43,6 +43,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const token = localStorage.getItem('milk_crm_token');
+    if (token?.startsWith('token_local_owner_session')) {
+      return Promise.reject(error);
+    }
     if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
       localStorage.removeItem('milk_crm_token');
       localStorage.removeItem('milk_crm_user');

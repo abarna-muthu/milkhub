@@ -249,16 +249,22 @@ export const CustomersPage: React.FC = () => {
     setIsSubmitting(true);
 
     const normalizedDate = normalizeDate(addForm.start_date) || addForm.start_date;
-    const cleanPayload: CreateCustomerDTO = {
+    const cleanPayload: any = {
       name: addForm.name.trim(),
       phone: addForm.phone.trim(),
+      mobile: addForm.phone.trim(),
       address: addForm.address.trim(),
       area: addForm.area.trim(),
+      village: addForm.area.trim(),
       default_morning_qty: Number(addForm.default_morning_qty) || 0,
       default_evening_qty: Number(addForm.default_evening_qty) || 0,
       rate: Number(addForm.rate) || 0,
       start_date: normalizedDate,
       status: addForm.status || 'active',
+      cow_count: 0,
+      buffalo_count: 0,
+      default_session: 'both',
+      collection_center_id: 'c1',
     };
 
     try {
@@ -322,12 +328,14 @@ export const CustomersPage: React.FC = () => {
     setIsSubmitting(true);
 
     const normalizedDate = editForm.start_date ? (normalizeDate(editForm.start_date) || editForm.start_date) : undefined;
-    const cleanPayload: UpdateCustomerDTO = {
+    const cleanPayload: any = {
       ...editForm,
       name: editForm.name !== undefined ? editForm.name.trim() : undefined,
       phone: editForm.phone !== undefined ? editForm.phone.trim() : undefined,
+      mobile: editForm.phone !== undefined ? editForm.phone.trim() : undefined,
       address: editForm.address !== undefined ? editForm.address.trim() : undefined,
       area: editForm.area !== undefined ? editForm.area.trim() : undefined,
+      village: editForm.area !== undefined ? editForm.area.trim() : undefined,
       ...(normalizedDate ? { start_date: normalizedDate } : {}),
       default_morning_qty: editForm.default_morning_qty !== undefined ? Number(editForm.default_morning_qty) : undefined,
       default_evening_qty: editForm.default_evening_qty !== undefined ? Number(editForm.default_evening_qty) : undefined,

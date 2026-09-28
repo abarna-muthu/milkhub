@@ -66,9 +66,10 @@ function validateCustomerPayload(
     }
   }
 
-  // Phone validation
-  if (!isUpdate || body.phone !== undefined) {
-    if (!body.phone || typeof body.phone !== 'string' || body.phone.trim().replace(/\D/g, '').length < 7) {
+  // Phone validation (accepts phone or mobile)
+  const phoneVal = body.phone !== undefined ? body.phone : body.mobile;
+  if (!isUpdate || phoneVal !== undefined) {
+    if (!phoneVal || typeof phoneVal !== 'string' || phoneVal.trim().replace(/\D/g, '').length < 7) {
       return { valid: false, error: 'Valid phone number is required (min 7 digits)', field: 'phone' };
     }
   }
@@ -80,9 +81,10 @@ function validateCustomerPayload(
     }
   }
 
-  // Area validation
-  if (!isUpdate || body.area !== undefined) {
-    if (!body.area || typeof body.area !== 'string' || body.area.trim().length < 2) {
+  // Area validation (accepts area or village)
+  const areaVal = body.area !== undefined ? body.area : body.village;
+  if (!isUpdate || areaVal !== undefined) {
+    if (!areaVal || typeof areaVal !== 'string' || areaVal.trim().length < 2) {
       return { valid: false, error: 'Area is required', field: 'area' };
     }
   }
@@ -141,10 +143,17 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 
     const customers = await tidb.getCustomers({ search, status });
 
+    // Enrich customer objects with mobile & village aliases
+    const enriched = customers.map((c) => ({
+      ...c,
+      mobile: c.phone,
+      village: c.area,
+    }));
+
     // Respond with both array and envelope with total
     res.json({
-      customers,
-      total: customers.length,
+      customers: enriched,
+      total: enriched.length,
       search: search || null,
       status: status || null,
     });
@@ -168,11 +177,14 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
+    const phone = (req.body.phone || req.body.mobile)?.trim();
+    const area = (req.body.area || req.body.village)?.trim();
+
     const payload: CreateCustomerDTO = {
       name: req.body.name?.trim(),
-      phone: req.body.phone?.trim(),
+      phone,
       address: req.body.address?.trim(),
-      area: req.body.area?.trim(),
+      area,
       default_morning_qty: Number(req.body.default_morning_qty) || 0,
       default_evening_qty: Number(req.body.default_evening_qty) || 0,
       rate: Number(req.body.rate),
@@ -184,8 +196,14 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     res.status(201).json({
       message: 'Customer created successfully',
-      customer,
+      customer: {
+        ...customer,
+        mobile: customer.phone,
+        village: customer.area,
+      },
       ...customer,
+      mobile: customer.phone,
+      village: customer.area,
     });
   } catch (err: any) {
     console.error('Error creating customer:', err);
@@ -207,8 +225,14 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     res.json({
-      customer,
+      customer: {
+        ...customer,
+        mobile: customer.phone,
+        village: customer.area,
+      },
       ...customer,
+      mobile: customer.phone,
+      village: customer.area,
     });
   } catch (err: any) {
     console.error('Error fetching customer by id:', err);
@@ -217,10 +241,9 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 /**
- * PATCH /api/customers/:id
- * Edit customer with validation
+ * Helper to update customer
  */
-router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
+async function handleCustomerUpdate(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
 
@@ -239,9 +262,11 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
     const updateData: UpdateCustomerDTO = {};
     if (req.body.name !== undefined) updateData.name = req.body.name;
-    if (req.body.phone !== undefined) updateData.phone = req.body.phone;
+    const phone = req.body.phone !== undefined ? req.body.phone : req.body.mobile;
+    if (phone !== undefined) updateData.phone = phone;
     if (req.body.address !== undefined) updateData.address = req.body.address;
-    if (req.body.area !== undefined) updateData.area = req.body.area;
+    const area = req.body.area !== undefined ? req.body.area : req.body.village;
+    if (area !== undefined) updateData.area = area;
     if (req.body.default_morning_qty !== undefined)
       updateData.default_morning_qty = Number(req.body.default_morning_qty);
     if (req.body.default_evening_qty !== undefined)
@@ -252,17 +277,33 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
     if (req.body.status !== undefined) updateData.status = req.body.status;
 
     const updated = await tidb.updateCustomer(id, updateData);
+    if (!updated) {
+      return res.status(404).json({ error: `Failed to update customer with ID '${id}'` });
+    }
 
     res.json({
       message: 'Customer updated successfully',
-      customer: updated,
+      customer: {
+        ...updated,
+        mobile: updated.phone,
+        village: updated.area,
+      },
       ...updated,
+      mobile: updated.phone,
+      village: updated.area,
     });
   } catch (err: any) {
     console.error('Error updating customer:', err);
     res.status(500).json({ error: err.message || 'Failed to update customer' });
   }
-});
+}
+
+/**
+ * PATCH & PUT /api/customers/:id
+ * Edit customer with validation
+ */
+router.patch('/:id', handleCustomerUpdate);
+router.put('/:id', handleCustomerUpdate);
 
 /**
  * Phase 5: GET /api/customers/:id/advance

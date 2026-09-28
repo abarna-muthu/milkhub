@@ -6,6 +6,7 @@ import {
   DBStatus,
   HealthResponse,
   Customer,
+  CustomerStatus,
   CreateCustomerDTO,
   UpdateCustomerDTO,
   DeliveriesResponse,
@@ -115,21 +116,37 @@ export const customerApi = {
       if (params?.search) queryParams.search = params.search;
       if (params?.status) queryParams.status = params.status;
 
-      const res = await api.get<{ customers: Customer[]; total: number }>('/customers', {
+      const res = await api.get<any>('/customers', {
         params: queryParams,
       });
 
       let backendCustomers: Customer[] = [];
       if (Array.isArray(res.data)) {
         backendCustomers = res.data;
-      } else if (res.data?.customers) {
+      } else if (res.data?.customers && Array.isArray(res.data.customers)) {
         backendCustomers = res.data.customers;
       }
+
+      // Map and normalize legacy and current backend customer shapes
+      const normalizedBackend = backendCustomers.map((c: any) => ({
+        id: String(c.id || c.customer_code || `cust_${Date.now()}`),
+        name: c.name || '',
+        phone: c.phone || c.mobile || '',
+        address: c.address || '',
+        area: c.area || c.village || '',
+        default_morning_qty: Number(c.default_morning_qty ?? 1.0) || 0,
+        default_evening_qty: Number(c.default_evening_qty ?? 1.0) || 0,
+        rate: Number(c.rate ?? 60.0) || 0,
+        start_date: c.start_date || new Date().toISOString().split('T')[0],
+        status: (c.status as CustomerStatus) || 'active',
+        created_at: c.created_at,
+        updated_at: c.updated_at,
+      }));
 
       // Merge backend and local customers
       const mergedMap = new Map<string, Customer>();
       local.forEach((c) => mergedMap.set(c.id, c));
-      backendCustomers.forEach((c) => {
+      normalizedBackend.forEach((c) => {
         if (!mergedMap.has(c.id)) {
           mergedMap.set(c.id, c);
         }
@@ -171,27 +188,80 @@ export const customerApi = {
   getById: async (id: string): Promise<Customer> => {
     try {
       const res = await api.get<any>(`/customers/${id}`);
-      const cust = res.data.customer || res.data;
-      if (cust) saveLocalCustomer(cust);
-      return cust;
+      const c = res.data.customer || res.data;
+      if (c) {
+        const cust: Customer = {
+          id: String(c.id || id),
+          name: c.name || '',
+          phone: c.phone || c.mobile || '',
+          address: c.address || '',
+          area: c.area || c.village || '',
+          default_morning_qty: Number(c.default_morning_qty ?? 1.0) || 0,
+          default_evening_qty: Number(c.default_evening_qty ?? 1.0) || 0,
+          rate: Number(c.rate ?? 60.0) || 0,
+          start_date: c.start_date || new Date().toISOString().split('T')[0],
+          status: (c.status as CustomerStatus) || 'active',
+          created_at: c.created_at,
+          updated_at: c.updated_at,
+        };
+        saveLocalCustomer(cust);
+        return cust;
+      }
     } catch {
       const found = getLocalCustomers().find((c) => c.id === id);
       if (found) return found;
       throw new Error(`Customer with ID '${id}' not found`);
     }
+    const found = getLocalCustomers().find((c) => c.id === id);
+    if (found) return found;
+    throw new Error(`Customer with ID '${id}' not found`);
   },
 
   create: async (data: CreateCustomerDTO): Promise<Customer> => {
+    // Send dual-compatible payload containing both phone/mobile and area/village
+    const payload = {
+      ...data,
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      mobile: data.phone.trim(),
+      address: data.address.trim(),
+      area: data.area.trim(),
+      village: data.area.trim(),
+      cow_count: 0,
+      buffalo_count: 0,
+      default_session: 'both',
+      collection_center_id: 'c1',
+    };
+
     try {
-      const res = await api.post<any>('/customers', data);
+      const res = await api.post<any>('/customers', payload);
       const created = res.data.customer || res.data;
-      if (created && created.id) {
-        saveLocalCustomer(created);
-        return created;
+      if (created) {
+        const normalizedCust: Customer = {
+          id: String(created.id || `cust_${Date.now()}`),
+          name: created.name || data.name,
+          phone: created.phone || created.mobile || data.phone,
+          address: created.address || data.address,
+          area: created.area || created.village || data.area,
+          default_morning_qty: Number(created.default_morning_qty ?? data.default_morning_qty) || 0,
+          default_evening_qty: Number(created.default_evening_qty ?? data.default_evening_qty) || 0,
+          rate: Number(created.rate ?? data.rate) || 0,
+          start_date: created.start_date || data.start_date,
+          status: created.status || data.status || 'active',
+          created_at: created.created_at || new Date().toISOString(),
+          updated_at: created.updated_at || new Date().toISOString(),
+        };
+        saveLocalCustomer(normalizedCust);
+        return normalizedCust;
       }
     } catch (err: any) {
-      // If 405 (static host/Vercel with no backend proxy) or network unreachable, persist locally
-      if (err.response?.status === 405 || !err.response) {
+      // If 405 (static host/Vercel with no backend proxy) or network unreachable or schema reject
+      if (
+        err.response?.status === 405 ||
+        !err.response ||
+        err.response?.data?.error?.includes('Village') ||
+        err.response?.data?.error?.includes('Mobile')
+      ) {
         const fallbackId = `cust_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         const localCustomer: Customer = {
           id: fallbackId,
@@ -232,12 +302,47 @@ export const customerApi = {
   },
 
   update: async (id: string, data: UpdateCustomerDTO): Promise<Customer> => {
+    const payload: any = {
+      ...data,
+    };
+    if (data.phone !== undefined) {
+      payload.phone = data.phone;
+      payload.mobile = data.phone;
+    }
+    if (data.area !== undefined) {
+      payload.area = data.area;
+      payload.village = data.area;
+    }
+
     try {
-      const res = await api.patch<any>(`/customers/${id}`, data);
-      const updated = res.data.customer || res.data;
+      let res: any;
+      try {
+        res = await api.patch<any>(`/customers/${id}`, payload);
+      } catch (patchErr: any) {
+        if (patchErr.response?.status === 404 || patchErr.response?.status === 405) {
+          res = await api.put<any>(`/customers/${id}`, payload);
+        } else {
+          throw patchErr;
+        }
+      }
+      const updated = res.data?.customer || res.data;
       if (updated) {
-        saveLocalCustomer(updated);
-        return updated;
+        const normalized: Customer = {
+          id: String(updated.id || id),
+          name: updated.name || data.name || '',
+          phone: updated.phone || updated.mobile || data.phone || '',
+          address: updated.address || data.address || '',
+          area: updated.area || updated.village || data.area || '',
+          default_morning_qty: Number(updated.default_morning_qty ?? data.default_morning_qty) || 0,
+          default_evening_qty: Number(updated.default_evening_qty ?? data.default_evening_qty) || 0,
+          rate: Number(updated.rate ?? data.rate) || 0,
+          start_date: updated.start_date || data.start_date || '',
+          status: updated.status || data.status || 'active',
+          created_at: updated.created_at,
+          updated_at: updated.updated_at || new Date().toISOString(),
+        };
+        saveLocalCustomer(normalized);
+        return normalized;
       }
     } catch (err: any) {
       if (err.response?.status === 405 || !err.response) {
@@ -252,10 +357,8 @@ export const customerApi = {
             default_morning_qty: 0,
             default_evening_qty: 0,
             rate: 0,
-            start_date: '',
+            start_date: new Date().toISOString().split('T')[0],
             status: 'active',
-            created_at: '',
-            updated_at: '',
           }),
           ...data,
           updated_at: new Date().toISOString(),
@@ -265,7 +368,25 @@ export const customerApi = {
       }
       throw err;
     }
-    return { id, ...data } as Customer;
+    const existing = getLocalCustomers().find((c) => c.id === id);
+    const updatedCust: Customer = {
+      ...(existing || {
+        id,
+        name: '',
+        phone: '',
+        address: '',
+        area: '',
+        default_morning_qty: 0,
+        default_evening_qty: 0,
+        rate: 0,
+        start_date: new Date().toISOString().split('T')[0],
+        status: 'active',
+      }),
+      ...data,
+      updated_at: new Date().toISOString(),
+    };
+    saveLocalCustomer(updatedCust);
+    return updatedCust;
   },
 
   getHistory: async (id: string, month?: string): Promise<CustomerHistoryResponse> => {

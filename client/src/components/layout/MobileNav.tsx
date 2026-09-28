@@ -34,11 +34,11 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'customers', label: 'Customers', icon: <Users className="w-4 h-4" /> },
-    { id: 'deliveries-morning', label: 'Morning Delivery', icon: <Sun className="w-4 h-4 text-amber-500" /> },
-    { id: 'deliveries-evening', label: 'Evening Delivery', icon: <Moon className="w-4 h-4 text-indigo-500" /> },
-    { id: 'sales', label: 'Day-wise Sales', icon: <Receipt className="w-4 h-4 text-teal-600" /> },
-    { id: 'payments', label: 'Payments & Advance', icon: <CreditCard className="w-4 h-4 text-emerald-600" /> },
-    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4 text-slate-500" /> },
+    { id: 'deliveries-morning', label: 'Morning Delivery', icon: <Sun className="w-4 h-4" /> },
+    { id: 'deliveries-evening', label: 'Evening Delivery', icon: <Moon className="w-4 h-4" /> },
+    { id: 'sales', label: 'Day-wise Sales', icon: <Receipt className="w-4 h-4" /> },
+    { id: 'payments', label: 'Payments & Advance', icon: <CreditCard className="w-4 h-4" /> },
+    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
   return (

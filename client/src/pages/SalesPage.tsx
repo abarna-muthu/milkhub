@@ -197,22 +197,22 @@ export const SalesPage: React.FC = () => {
       {/* KPI Stats Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Morning Litres */}
-        <div className="bg-white p-4 rounded-xl border border-amber-200/80 bg-gradient-to-br from-white to-amber-50/40 shadow-sm">
-          <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1">
-            <Sun className="w-3 h-3 text-amber-500" /> Morning Litres
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+            <Sun className="w-3.5 h-3.5 text-slate-600" /> Morning Litres
           </span>
-          <div className="text-xl font-black text-amber-800 mt-1">
+          <div className="text-xl font-black text-slate-900 mt-1 font-mono">
             {(Number(summary?.total_morning_litres) || 0).toFixed(1)}{' '}
             <span className="text-xs font-normal text-slate-500">L</span>
           </div>
         </div>
 
         {/* Evening Litres */}
-        <div className="bg-white p-4 rounded-xl border border-indigo-200/80 bg-gradient-to-br from-white to-indigo-50/40 shadow-sm">
-          <span className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wider flex items-center gap-1">
-            <Moon className="w-3 h-3 text-indigo-500" /> Evening Litres
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+            <Moon className="w-3.5 h-3.5 text-slate-600" /> Evening Litres
           </span>
-          <div className="text-xl font-black text-indigo-800 mt-1">
+          <div className="text-xl font-black text-slate-900 mt-1 font-mono">
             {(Number(summary?.total_evening_litres) || 0).toFixed(1)}{' '}
             <span className="text-xs font-normal text-slate-500">L</span>
           </div>
@@ -223,38 +223,38 @@ export const SalesPage: React.FC = () => {
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
             Total Milk Sold
           </span>
-          <div className="text-xl font-black text-slate-900 mt-1">
+          <div className="text-xl font-black text-slate-900 mt-1 font-mono">
             {(Number(summary?.total_litres) || 0).toFixed(2)}{' '}
             <span className="text-xs font-normal text-slate-500">L</span>
           </div>
         </div>
 
         {/* Total Sale */}
-        <div className="bg-white p-4 rounded-xl border border-emerald-200 bg-gradient-to-br from-white to-emerald-50/40 shadow-sm">
-          <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
-            <TrendingUp className="w-3 h-3 text-emerald-600" /> Total Daily Sale
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+            <TrendingUp className="w-3.5 h-3.5 text-slate-600" /> Total Daily Sale
           </span>
-          <div className="text-xl font-black text-emerald-700 mt-1">
+          <div className="text-xl font-black text-slate-900 mt-1 font-mono">
             ₹{(Number(summary?.total_sales_amount) || 0).toFixed(2)}
           </div>
         </div>
 
         {/* Paid / Advance Used */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
             Advance / Paid
           </span>
-          <div className="text-xl font-black text-slate-500 mt-1">
+          <div className="text-xl font-black text-slate-900 mt-1 font-mono">
             ₹{((Number(summary?.total_advance_used) || 0) + (Number(summary?.total_paid) || 0)).toFixed(2)}
           </div>
         </div>
 
         {/* Total Due */}
-        <div className="bg-white p-4 rounded-xl border border-rose-200 bg-gradient-to-br from-white to-rose-50/40 shadow-sm">
-          <span className="text-[11px] font-semibold text-rose-700 uppercase tracking-wider flex items-center gap-1">
-            <IndianRupee className="w-3 h-3 text-rose-500" /> Total Due Amount
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+            <IndianRupee className="w-3.5 h-3.5 text-slate-600" /> Total Due Amount
           </span>
-          <div className="text-xl font-black text-rose-700 mt-1">
+          <div className="text-xl font-black text-slate-900 mt-1 font-mono">
             ₹{(Number(summary?.total_due) || 0).toFixed(2)}
           </div>
         </div>
@@ -334,70 +334,48 @@ export const SalesPage: React.FC = () => {
 
                       {/* Morning (L) */}
                       <td className="py-3.5 px-4 text-center">
-                        <span className="inline-flex items-center gap-1 font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/60">
+                        <span className="inline-flex items-center gap-1 font-semibold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-xs">
                           {morning.toFixed(2)} L
                         </span>
                       </td>
 
                       {/* Evening (L) */}
                       <td className="py-3.5 px-4 text-center">
-                        <span className="inline-flex items-center gap-1 font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-200/60">
+                        <span className="inline-flex items-center gap-1 font-semibold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-xs">
                           {evening.toFixed(2)} L
                         </span>
                       </td>
 
                       {/* Total (L) */}
                       <td className="py-3.5 px-4 text-center">
-                        <span className="font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-xs">
+                        <span className="font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-mono">
                           {total.toFixed(2)} L
                         </span>
                       </td>
 
                       {/* Rate (₹/L) */}
-                      <td className="py-3.5 px-4 text-right font-medium text-slate-700">
+                      <td className="py-3.5 px-4 text-right font-medium text-slate-700 font-mono">
                         ₹{rate.toFixed(2)}
                       </td>
 
                       {/* Sale Amount (₹) */}
-                      <td className="py-3.5 px-4 text-right">
-                        <span className="font-black text-emerald-700 text-sm">
-                          ₹{sale.toFixed(2)}
-                        </span>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 text-sm">
+                        ₹{sale.toFixed(2)}
                       </td>
 
                       {/* Advance Used (₹) */}
-                      <td className="py-3.5 px-4 text-right">
-                        {advUsed > 0 ? (
-                          <span className="font-bold text-indigo-700 font-mono bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                            -₹{advUsed.toFixed(2)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-mono">₹0.00</span>
-                        )}
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-700">
+                        {advUsed > 0 ? `₹${advUsed.toFixed(2)}` : '₹0.00'}
                       </td>
 
                       {/* Paid (₹) */}
-                      <td className="py-3.5 px-4 text-right">
-                        {paid > 0 ? (
-                          <span className="font-bold text-emerald-700 font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            -₹{paid.toFixed(2)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-mono">₹0.00</span>
-                        )}
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-700">
+                        {paid > 0 ? `₹${paid.toFixed(2)}` : '₹0.00'}
                       </td>
 
                       {/* Due (₹) */}
-                      <td className="py-3.5 px-4 text-right">
-                        {due <= 0 ? (
-                          <span className="font-bold text-emerald-600 bg-emerald-50 text-[11px] px-2 py-0.5 rounded-full border border-emerald-200">
-                            ₹0.00 (Settled)
-                          </span>
-                        ) : (
-                          <span className="font-black text-rose-600 text-sm font-mono">
-                            ₹{due.toFixed(2)}
-                          </span>
-                        )}
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                        ₹{due.toFixed(2)}
                       </td>
                     </tr>
                   );

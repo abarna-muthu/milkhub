@@ -35,27 +35,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate }) => 
     {
       id: 'deliveries-morning',
       label: 'Morning Delivery',
-      icon: <Sun className="w-4 h-4 text-amber-500" />,
+      icon: <Sun className="w-4 h-4" />,
     },
     {
       id: 'deliveries-evening',
       label: 'Evening Delivery',
-      icon: <Moon className="w-4 h-4 text-indigo-500" />,
+      icon: <Moon className="w-4 h-4" />,
     },
     {
       id: 'sales',
       label: 'Day-wise Sales',
-      icon: <Receipt className="w-4 h-4 text-teal-600" />,
+      icon: <Receipt className="w-4 h-4" />,
     },
     {
       id: 'payments',
       label: 'Payments & Advance',
-      icon: <CreditCard className="w-4 h-4 text-emerald-600" />,
+      icon: <CreditCard className="w-4 h-4" />,
     },
     {
       id: 'settings',
       label: 'Settings',
-      icon: <Settings className="w-4 h-4 text-slate-500" />,
+      icon: <Settings className="w-4 h-4" />,
     },
   ];
 

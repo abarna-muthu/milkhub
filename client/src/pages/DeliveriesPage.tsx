@@ -449,9 +449,9 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
               isMorning ? 'text-amber-800' : 'text-indigo-800'
             }`}
           >
-            {summary.totalQty.toFixed(2)}{' '}
+            {(Number(summary.totalQty) || 0).toFixed(2)}{' '}
             <span className="text-xs font-normal text-slate-500">
-              L (Default: {summary.defaultTotal.toFixed(2)}L)
+              L (Default: {(Number(summary.defaultTotal) || 0).toFixed(2)}L)
             </span>
           </div>
         </div>
@@ -557,7 +557,7 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
                       {/* Default Pre-fill reference */}
                       <td className="py-3.5 px-4 text-center">
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200" title="Permanent Customer Default Quantity">
-                          {item.default_qty.toFixed(1)} L
+                          {(Number(item.default_qty) || 0).toFixed(1)} L
                         </span>
                       </td>
 

@@ -14,6 +14,58 @@ import { SettingsPage } from './pages/SettingsPage';
 import { Milk, Sparkles } from 'lucide-react';
 
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  onReset?: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 bg-white rounded-2xl border border-rose-200 shadow-sm text-center my-6">
+          <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 mx-auto flex items-center justify-center mb-3">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-900">Unable to Display View</h3>
+          <p className="text-xs text-rose-600 font-mono max-w-md mx-auto mt-1 mb-4 bg-rose-50 p-2 rounded-lg">
+            {this.state.error?.message || 'An unexpected rendering error occurred.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              this.props.onReset?.();
+            }}
+            className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition"
+          >
+            Reload View
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function MainApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [currentPath, setCurrentPath] = useState<string>('dashboard');
@@ -74,46 +126,47 @@ function MainApp() {
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
-            {currentPath === 'dashboard' && <DashboardPage onNavigate={handleNavigate} />}
-            {currentPath === 'customers' && <CustomersPage />}
-            {currentPath === 'deliveries-morning' && <DeliveriesPage initialSession="morning" />}
-            {currentPath === 'deliveries-evening' && <DeliveriesPage initialSession="evening" />}
-            {currentPath === 'sales' && <SalesPage />}
-            {currentPath === 'payments' && <PaymentsPage initialTab="daily" />}
-            {currentPath === 'payments-daily' && <PaymentsPage initialTab="daily" />}
-            {currentPath === 'payments-advance' && <PaymentsPage initialTab="advance" />}
-            {currentPath === 'settings' && <SettingsPage />}
-            {currentPath !== 'dashboard' &&
-              currentPath !== 'customers' &&
-              currentPath !== 'deliveries-morning' &&
-              currentPath !== 'deliveries-evening' &&
-              currentPath !== 'sales' &&
-              currentPath !== 'payments' &&
-              currentPath !== 'payments-daily' &&
-              currentPath !== 'payments-advance' &&
-              currentPath !== 'settings' && (
-                <div className="p-8 bg-white rounded-2xl border border-slate-200 shadow-sm text-center">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center mb-3">
-                    <Sparkles className="w-6 h-6" />
+            <ErrorBoundary key={currentPath} onReset={() => setCurrentPath('dashboard')}>
+              {currentPath === 'dashboard' && <DashboardPage onNavigate={handleNavigate} />}
+              {currentPath === 'customers' && <CustomersPage />}
+              {currentPath === 'deliveries-morning' && <DeliveriesPage initialSession="morning" />}
+              {currentPath === 'deliveries-evening' && <DeliveriesPage initialSession="evening" />}
+              {currentPath === 'sales' && <SalesPage />}
+              {currentPath === 'payments' && <PaymentsPage initialTab="daily" />}
+              {currentPath === 'payments-daily' && <PaymentsPage initialTab="daily" />}
+              {currentPath === 'payments-advance' && <PaymentsPage initialTab="advance" />}
+              {currentPath === 'settings' && <SettingsPage />}
+              {currentPath !== 'dashboard' &&
+                currentPath !== 'customers' &&
+                currentPath !== 'deliveries-morning' &&
+                currentPath !== 'deliveries-evening' &&
+                currentPath !== 'sales' &&
+                currentPath !== 'payments' &&
+                currentPath !== 'payments-daily' &&
+                currentPath !== 'payments-advance' &&
+                currentPath !== 'settings' && (
+                  <div className="p-8 bg-white rounded-2xl border border-slate-200 shadow-sm text-center">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center mb-3">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 capitalize">
+                      {currentPath.replace('-', ' ')}
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 mb-4">
+                      MilkHub management system is active and operational.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPath('dashboard')}
+                      className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition"
+                    >
+                      Return to Dashboard
+                    </button>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 capitalize">
-                    {currentPath.replace('-', ' ')}
-                  </h3>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 mb-4">
-                    MilkHub management system is active and operational.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPath('dashboard')}
-                    className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition"
-                  >
-                    Return to Dashboard
-                  </button>
-                </div>
-              )}
+                )}
+            </ErrorBoundary>
           </div>
         </main>
-
       </div>
     </div>
   );

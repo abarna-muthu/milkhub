@@ -1363,35 +1363,35 @@ export const CustomersPage: React.FC = () => {
                       <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-center">
                         <div className="text-[10px] uppercase font-bold text-amber-700">Total Milk</div>
                         <div className="text-lg font-black text-amber-800 font-mono mt-0.5">
-                          {historyData.monthly_summary.total_milk.toFixed(2)} L
+                          {(Number(historyData.monthly_summary.total_milk) || 0).toFixed(2)} L
                         </div>
                       </div>
 
                       <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-center">
                         <div className="text-[10px] uppercase font-bold text-emerald-700">Total Sales</div>
                         <div className="text-lg font-black text-emerald-800 font-mono mt-0.5">
-                          ₹{historyData.monthly_summary.total_sales.toFixed(2)}
+                          ₹{(Number(historyData.monthly_summary.total_sales) || 0).toFixed(2)}
                         </div>
                       </div>
 
                       <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl text-center">
                         <div className="text-[10px] uppercase font-bold text-blue-700">Total Paid</div>
                         <div className="text-lg font-black text-blue-800 font-mono mt-0.5">
-                          ₹{historyData.monthly_summary.total_paid.toFixed(2)}
+                          ₹{(Number(historyData.monthly_summary.total_paid) || 0).toFixed(2)}
                         </div>
                       </div>
 
                       <div className="p-3 bg-rose-50/70 border border-rose-200/80 rounded-xl text-center">
                         <div className="text-[10px] uppercase font-bold text-rose-700">Total Due</div>
                         <div className="text-lg font-black text-rose-800 font-mono mt-0.5">
-                          ₹{historyData.monthly_summary.total_due.toFixed(2)}
+                          ₹{(Number(historyData.monthly_summary.total_due) || 0).toFixed(2)}
                         </div>
                       </div>
 
                       <div className="p-3 bg-indigo-50/70 border border-indigo-200/80 rounded-xl text-center col-span-2 sm:col-span-1">
                         <div className="text-[10px] uppercase font-bold text-indigo-700">Advance Balance</div>
                         <div className="text-lg font-black text-indigo-800 font-mono mt-0.5">
-                          ₹{historyData.monthly_summary.advance_balance.toFixed(2)}
+                          ₹{(Number(historyData.monthly_summary.advance_balance) || 0).toFixed(2)}
                         </div>
                       </div>
                     </div>

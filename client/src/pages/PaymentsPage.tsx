@@ -798,7 +798,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialTab = 'daily'
                               onClick={() => handleQuickPayCustomer(item.customer_id)}
                               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition shadow-xs"
                             >
-                              <span>Pay ₹{item.due.toFixed(2)}</span>
+                              <span>Pay ₹{(Number(item.due) || 0).toFixed(2)}</span>
                             </button>
                           ) : (
                             <span className="text-[11px] text-emerald-600 font-semibold flex items-center justify-center gap-1">
@@ -869,9 +869,9 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialTab = 'daily'
                 ) : (
                   filteredCustomers.map((cust) => {
                     const adv = customerAdvances[cust.id];
-                    const balance = adv?.advance_balance ?? 0;
-                    const credited = adv?.total_advance_credited ?? 0;
-                    const used = adv?.total_advance_used ?? 0;
+                    const balance = Number(adv?.advance_balance) || 0;
+                    const credited = Number(adv?.total_advance_credited) || 0;
+                    const used = Number(adv?.total_advance_used) || 0;
 
                     return (
                       <tr key={cust.id} className="hover:bg-slate-50/60 transition">
@@ -1056,7 +1056,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialTab = 'daily'
                   <option value="">-- Choose Customer --</option>
                   {customers.map((c) => {
                     const sale = todaySales.find((s) => s.customer_id === c.id);
-                    const dueAmt = sale ? sale.due : 0;
+                    const dueAmt = Number(sale?.due) || 0;
                     return (
                       <option key={c.id} value={c.id}>
                         {c.name} ({c.area}) — Due Today: ₹{dueAmt.toFixed(2)}
@@ -1162,7 +1162,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialTab = 'daily'
                 >
                   <option value="">-- Choose Customer --</option>
                   {customers.map((c) => {
-                    const currentAdv = customerAdvances[c.id]?.advance_balance ?? 0;
+                    const currentAdv = Number(customerAdvances[c.id]?.advance_balance) || 0;
                     return (
                       <option key={c.id} value={c.id}>
                         {c.name} ({c.area}) — Current Adv: ₹{currentAdv.toFixed(2)}
@@ -1252,7 +1252,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialTab = 'daily'
                 <p className="text-xs text-slate-500">
                   Current Advance Balance:{' '}
                   <strong className="text-emerald-600 font-mono text-sm">
-                    ₹{ledgerModalCustomer.advance_balance.toFixed(2)}
+                    ₹{(Number(ledgerModalCustomer.advance_balance) || 0).toFixed(2)}
                   </strong>
                 </p>
               </div>

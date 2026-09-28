@@ -13,7 +13,7 @@ router.use(authMiddleware);
  */
 export function normalizeDate(dateVal: any): string | null {
   if (!dateVal) return null;
-  const s = String(dateVal).trim().split('T')[0];
+  const s = String(dateVal).replace(/\s+/g, '').trim().split('T')[0];
   if (!s) return null;
 
   // Pattern: YYYY-MM-DD or YYYY/MM/DD

@@ -19,14 +19,15 @@ export const authRouter = Router();
  */
 authRouter.post('/login', async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const rawEmail = req.body.email || req.body.identifier || req.body.mobile || req.body.username;
+    const password = req.body.password;
 
     // 1. Validate Email Input
-    if (!email || typeof email !== 'string') {
+    if (!rawEmail || typeof rawEmail !== 'string') {
       return res.status(400).json({ error: 'Email address is required' });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = rawEmail.trim().toLowerCase();
     if (!isValidEmail(cleanEmail)) {
       return res.status(400).json({ error: 'Please enter a valid email address' });
     }

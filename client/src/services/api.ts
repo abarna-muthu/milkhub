@@ -55,8 +55,12 @@ api.interceptors.response.use(
 // Auth Service: Strictly Phase 1 Owner Authentication
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    const cleanEmail = credentials.email.trim();
     const res = await api.post<AuthResponse>('/auth/login', {
-      email: credentials.email.trim(),
+      email: cleanEmail,
+      identifier: cleanEmail,
+      mobile: cleanEmail,
+      username: cleanEmail,
       password: credentials.password,
     });
     return res.data;

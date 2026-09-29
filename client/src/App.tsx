@@ -4,7 +4,6 @@ import { ToastProvider } from './context/ToastContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
 import { MobileNav } from './components/layout/MobileNav';
-import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DeliveriesPage } from './pages/DeliveriesPage';
@@ -94,11 +93,6 @@ function MainApp() {
         </div>
       </div>
     );
-  }
-
-  // Unauthenticated -> Owner Login Page
-  if (!isAuthenticated) {
-    return <LoginPage onLoginSuccess={() => setCurrentPath('dashboard')} />;
   }
 
   // Authenticated Owner -> Layout + Dashboard

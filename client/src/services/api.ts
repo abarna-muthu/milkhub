@@ -542,6 +542,7 @@ export const deliveryApi = {
           customer_address: cust.address,
           default_qty: defaultQty,
           rate: Number(cust.rate ?? 60.0) || 0,
+          is_saved: existingBackend.is_saved === true,
         });
       } else {
         deliveriesMap.set(cust.id, {

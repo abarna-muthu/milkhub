@@ -15,6 +15,7 @@ import {
   Info,
   Check,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { DeliverySession, DeliveryStatus, DeliveryItem, SaveDeliveryPayload } from '../types';
 import { deliveryApi } from '../services/api';
@@ -129,6 +130,53 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
     } finally {
       setSavingRows((prev) => ({ ...prev, [item.customer_id]: false }));
     }
+  };
+
+  // Handle quick No Milk (0L) click and save directly for this single customer
+  const handleNoMilkClick = async (item: DeliveryItem) => {
+    setSavingRows((prev) => ({ ...prev, [item.customer_id]: true }));
+    try {
+      const payload: SaveDeliveryPayload = {
+        customer_id: item.customer_id,
+        date: selectedDate,
+        session,
+        actual_qty: 0,
+        status: 'no_milk',
+      };
+      await deliveryApi.saveDelivery(payload);
+      showToast(`Marked as No Milk (0L) for ${item.customer_name}`, 'info');
+      setDeliveryItems((prev) =>
+        prev.map((it) =>
+          it.customer_id === item.customer_id
+            ? { ...it, status: 'no_milk', actual_qty: 0, is_saved: true }
+            : it
+        )
+      );
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to save delivery', 'error');
+    } finally {
+      setSavingRows((prev) => ({ ...prev, [item.customer_id]: false }));
+    }
+  };
+
+  // Unlock single row so Delivered and No Milk buttons show again
+  const handleUnlockRow = (customerId: string) => {
+    setDeliveryItems((prev) =>
+      prev.map((it) =>
+        it.customer_id === customerId ? { ...it, is_saved: false } : it
+      )
+    );
+  };
+
+  // Reset all rows in current session to pending (show buttons for all)
+  const handleResetAllToPending = () => {
+    setDeliveryItems((prev) =>
+      prev.map((it) => ({
+        ...it,
+        is_saved: false,
+      }))
+    );
+    showToast('All customer buttons unlocked for editing', 'info');
   };
 
   // Quick increment/decrement
@@ -293,6 +341,16 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
             className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResetAllToPending}
+            title="Show Delivered and No Milk buttons for all customers"
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+            <span>Show All Buttons</span>
           </button>
 
           <button
@@ -654,22 +712,35 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
 
                       {/* Delivery Status Selector */}
                       <td className="py-3.5 px-4 text-center">
-                        {isDelivered && item.is_saved ? (
+                        {item.is_saved ? (
                           <div className="flex items-center justify-center">
-                            <span
-                              title="Delivered Successfully"
-                              className="inline-flex items-center justify-center text-emerald-600"
-                            >
-                              <Check className="w-7 h-7 stroke-[3]" />
-                            </span>
+                            {item.status === 'delivered' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleUnlockRow(item.customer_id)}
+                                title="Delivered (Click to change)"
+                                className="inline-flex items-center justify-center text-emerald-600 hover:scale-110 transition cursor-pointer p-1 rounded-full hover:bg-emerald-50"
+                              >
+                                <Check className="w-7 h-7 stroke-[3]" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleUnlockRow(item.customer_id)}
+                                title="No Milk (0L) - Click to change"
+                                className="inline-flex items-center justify-center text-rose-600 hover:scale-110 transition cursor-pointer p-1 rounded-full hover:bg-rose-50"
+                              >
+                                <X className="w-7 h-7 stroke-[3]" />
+                              </button>
+                            )}
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl">
+                          <div className="inline-flex items-center gap-1.5 p-0.5 bg-slate-100 rounded-xl">
                             <button
                               type="button"
                               onClick={() => handleDeliveredClick(item)}
                               disabled={isSavingThisRow}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs active:scale-95 disabled:opacity-50"
                             >
                               {isSavingThisRow ? (
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -681,14 +752,15 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
 
                             <button
                               type="button"
-                              onClick={() => handleStatusToggle(item.customer_id, 'no_milk')}
-                              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
-                                !isDelivered
-                                  ? 'bg-rose-600 text-white shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900'
-                              }`}
+                              onClick={() => handleNoMilkClick(item)}
+                              disabled={isSavingThisRow}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition bg-rose-600 hover:bg-rose-700 text-white shadow-xs active:scale-95 disabled:opacity-50"
                             >
-                              <XCircle className="w-3.5 h-3.5" />
+                              {isSavingThisRow ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5" />
+                              )}
                               <span>No Milk (0L)</span>
                             </button>
                           </div>

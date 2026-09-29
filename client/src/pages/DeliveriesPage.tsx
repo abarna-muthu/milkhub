@@ -16,6 +16,7 @@ import {
   Check,
   AlertTriangle,
   RotateCcw,
+  Pencil,
 } from 'lucide-react';
 import { DeliverySession, DeliveryStatus, DeliveryItem, SaveDeliveryPayload } from '../types';
 import { deliveryApi } from '../services/api';
@@ -160,12 +161,15 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
   };
 
   // Unlock single row so Delivered and No Milk buttons show again
-  const handleUnlockRow = (customerId: string) => {
+  const handleUnlockRow = (customerId: string, customerName?: string) => {
     setDeliveryItems((prev) =>
       prev.map((it) =>
         it.customer_id === customerId ? { ...it, is_saved: false } : it
       )
     );
+    if (customerName) {
+      showToast(`Editing delivery for ${customerName}`, 'info');
+    }
   };
 
   // Reset all rows in current session to pending (show buttons for all)
@@ -717,8 +721,8 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
                             {item.status === 'delivered' ? (
                               <button
                                 type="button"
-                                onClick={() => handleUnlockRow(item.customer_id)}
-                                title="Delivered (Click to change)"
+                                onClick={() => handleUnlockRow(item.customer_id, item.customer_name)}
+                                title="Delivered (Click to edit/change)"
                                 className="inline-flex items-center justify-center text-emerald-600 hover:scale-110 transition cursor-pointer p-1 rounded-full hover:bg-emerald-50"
                               >
                                 <Check className="w-7 h-7 stroke-[3]" />
@@ -726,8 +730,8 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => handleUnlockRow(item.customer_id)}
-                                title="No Milk (0L) - Click to change"
+                                onClick={() => handleUnlockRow(item.customer_id, item.customer_name)}
+                                title="No Milk (0L) - Click to edit/change"
                                 className="inline-flex items-center justify-center text-rose-600 hover:scale-110 transition cursor-pointer p-1 rounded-full hover:bg-rose-50"
                               >
                                 <X className="w-7 h-7 stroke-[3]" />
@@ -780,13 +784,20 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
                         )}
                       </td>
 
-                      {/* Action: Single Save */}
+                      {/* Action: Edit / Save */}
                       <td className="py-3.5 px-4 text-right">
                         {item.is_saved ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs pr-2">
-                            <Check className="w-4 h-4 stroke-[2.5]" />
-                            <span>Saved</span>
-                          </span>
+                          <div className="inline-flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleUnlockRow(item.customer_id, item.customer_name)}
+                              title="Edit status or milk quantity"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 font-bold text-xs transition shadow-2xs active:scale-95 cursor-pointer"
+                            >
+                              <Pencil className="w-3 h-3 text-slate-500" />
+                              <span>Edit</span>
+                            </button>
+                          </div>
                         ) : (
                           <button
                             type="button"

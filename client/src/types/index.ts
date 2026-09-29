@@ -141,6 +141,22 @@ export interface SaveDeliveryPayload {
   status: string;
 }
 
+export interface DeliveryHistoryItem {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_area: string;
+  date: string;
+  session: DeliverySession;
+  default_qty: number;
+  actual_qty: number;
+  status: DeliveryStatus;
+  rate: number;
+  amount: number;
+  updated_at?: string;
+}
+
 /**
  * Phase 4: Automatic Sales Calculation Types
  * Strict fields: id, customer_id, date, morning_qty, evening_qty, total_litres, rate, sale_amount

@@ -7,6 +7,7 @@ import { MobileNav } from './components/layout/MobileNav';
 import { DashboardPage } from './pages/DashboardPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DeliveriesPage } from './pages/DeliveriesPage';
+import { DeliveryHistoryPage } from './pages/DeliveryHistoryPage';
 import { SalesPage } from './pages/SalesPage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -125,6 +126,7 @@ function MainApp() {
               {currentPath === 'customers' && <CustomersPage />}
               {currentPath === 'deliveries-morning' && <DeliveriesPage initialSession="morning" />}
               {currentPath === 'deliveries-evening' && <DeliveriesPage initialSession="evening" />}
+              {currentPath === 'delivery-history' && <DeliveryHistoryPage />}
               {currentPath === 'sales' && <SalesPage />}
               {currentPath === 'payments' && <PaymentsPage initialTab="daily" />}
               {currentPath === 'payments-daily' && <PaymentsPage initialTab="daily" />}
@@ -134,6 +136,7 @@ function MainApp() {
                 currentPath !== 'customers' &&
                 currentPath !== 'deliveries-morning' &&
                 currentPath !== 'deliveries-evening' &&
+                currentPath !== 'delivery-history' &&
                 currentPath !== 'sales' &&
                 currentPath !== 'payments' &&
                 currentPath !== 'payments-daily' &&

@@ -13,6 +13,7 @@ import {
   DeliveryItem,
   DeliveryStatus,
   SaveDeliveryPayload,
+  DeliveryHistoryItem,
   SalesResponse,
   DayWiseSaleItem,
   Payment,
@@ -597,6 +598,75 @@ export const deliveryApi = {
     } catch {
       return { message: 'Deliveries saved successfully', count: deliveries.length };
     }
+  },
+
+  getHistory: async (params?: {
+    startDate?: string;
+    endDate?: string;
+    session?: 'morning' | 'evening' | 'all';
+  }): Promise<DeliveryHistoryItem[]> => {
+    // 1. Get all customers to enrich details
+    let customers: Customer[] = [];
+    try {
+      const custRes = await customerApi.getAll();
+      customers = Array.isArray(custRes?.customers) ? custRes.customers : [];
+    } catch {
+      customers = getLocalCustomers();
+    }
+    const customerMap = new Map<string, Customer>();
+    customers.forEach((c) => customerMap.set(c.id, c));
+
+    // 2. Get all saved local deliveries
+    const localRecords = getLocalDeliveries();
+
+    // 3. Transform to DeliveryHistoryItem
+    let items: DeliveryHistoryItem[] = localRecords.map((rec) => {
+      const cust = customerMap.get(rec.customer_id);
+      const rate = Number(cust?.rate ?? 60.0) || 0;
+      const actual_qty = Number(rec.actual_qty) || 0;
+      const defaultQty =
+        rec.session === 'morning'
+          ? Number(cust?.default_morning_qty ?? 1.0) || 0
+          : Number(cust?.default_evening_qty ?? 1.0) || 0;
+
+      return {
+        id: rec.id,
+        customer_id: rec.customer_id,
+        customer_name: cust?.name || 'Customer ' + rec.customer_id.slice(-4),
+        customer_phone: cust?.phone || '-',
+        customer_area: cust?.area || (cust as any)?.village || '-',
+        date: rec.date,
+        session: rec.session,
+        default_qty: defaultQty,
+        actual_qty,
+        status: rec.status,
+        rate,
+        amount: Math.round(actual_qty * rate * 100) / 100,
+        updated_at: rec.updated_at,
+      };
+    });
+
+    // 4. Filter by session if requested
+    if (params?.session && params.session !== 'all') {
+      items = items.filter((i) => i.session === params.session);
+    }
+
+    // 5. Filter by date range if requested
+    if (params?.startDate) {
+      items = items.filter((i) => i.date >= params.startDate!);
+    }
+    if (params?.endDate) {
+      items = items.filter((i) => i.date <= params.endDate!);
+    }
+
+    // 6. Sort date descending, session morning first then evening
+    items.sort((a, b) => {
+      const dateCmp = b.date.localeCompare(a.date);
+      if (dateCmp !== 0) return dateCmp;
+      return a.session.localeCompare(b.session);
+    });
+
+    return items;
   },
 };
 

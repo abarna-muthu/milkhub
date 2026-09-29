@@ -4,6 +4,7 @@ import {
   Users,
   Sun,
   Moon,
+  History,
   CreditCard,
   Settings,
   ShieldCheck,
@@ -41,6 +42,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate }) => 
       id: 'deliveries-evening',
       label: 'Evening Delivery',
       icon: <Moon className="w-4 h-4" />,
+    },
+    {
+      id: 'delivery-history',
+      label: 'Delivery History',
+      icon: <History className="w-4 h-4" />,
     },
     {
       id: 'sales',

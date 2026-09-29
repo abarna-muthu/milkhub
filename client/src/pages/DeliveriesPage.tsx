@@ -97,6 +97,40 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
     setHasUnsavedChanges(true);
   };
 
+  // Handle quick Delivered click and save directly
+  const handleDeliveredClick = async (item: DeliveryItem) => {
+    const actualQty =
+      Number(item.actual_qty) > 0
+        ? Number(item.actual_qty)
+        : Number(item.default_qty) > 0
+        ? Number(item.default_qty)
+        : 1.0;
+
+    setSavingRows((prev) => ({ ...prev, [item.customer_id]: true }));
+    try {
+      const payload: SaveDeliveryPayload = {
+        customer_id: item.customer_id,
+        date: selectedDate,
+        session,
+        actual_qty: actualQty,
+        status: 'delivered',
+      };
+      await deliveryApi.saveDelivery(payload);
+      showToast('Delivered Successfully!', 'success');
+      setDeliveryItems((prev) =>
+        prev.map((it) =>
+          it.customer_id === item.customer_id
+            ? { ...it, status: 'delivered', actual_qty: actualQty, is_saved: true }
+            : it
+        )
+      );
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to save delivery', 'error');
+    } finally {
+      setSavingRows((prev) => ({ ...prev, [item.customer_id]: false }));
+    }
+  };
+
   // Quick increment/decrement
   const handleAdjustQty = (customerId: string, delta: number) => {
     setDeliveryItems((prev) =>
@@ -620,33 +654,45 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
 
                       {/* Delivery Status Selector */}
                       <td className="py-3.5 px-4 text-center">
-                        <div className="inline-flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl">
-                          <button
-                            type="button"
-                            onClick={() => handleStatusToggle(item.customer_id, 'delivered')}
-                            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
-                              isDelivered
-                                ? 'bg-emerald-600 text-white shadow-sm'
-                                : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>Delivered</span>
-                          </button>
+                        {isDelivered && item.is_saved ? (
+                          <div className="flex items-center justify-center">
+                            <span
+                              title="Delivered Successfully"
+                              className="inline-flex items-center justify-center text-emerald-600"
+                            >
+                              <Check className="w-7 h-7 stroke-[3]" />
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl">
+                            <button
+                              type="button"
+                              onClick={() => handleDeliveredClick(item)}
+                              disabled={isSavingThisRow}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                            >
+                              {isSavingThisRow ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              )}
+                              <span>Delivered</span>
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleStatusToggle(item.customer_id, 'no_milk')}
-                            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
-                              !isDelivered
-                                ? 'bg-rose-600 text-white shadow-sm'
-                                : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                          >
-                            <XCircle className="w-3 h-3" />
-                            <span>No Milk (0L)</span>
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusToggle(item.customer_id, 'no_milk')}
+                              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                                !isDelivered
+                                  ? 'bg-rose-600 text-white shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>No Milk (0L)</span>
+                            </button>
+                          </div>
+                        )}
                       </td>
 
                       {/* Save State Badge */}
@@ -664,19 +710,26 @@ export const DeliveriesPage: React.FC<DeliveriesPageProps> = ({
 
                       {/* Action: Single Save */}
                       <td className="py-3.5 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleSaveRow(item)}
-                          disabled={isSavingThisRow}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition disabled:opacity-50"
-                        >
-                          {isSavingThisRow ? (
-                            <RefreshCw className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Save className="w-3 h-3" />
-                          )}
-                          <span>Save</span>
-                        </button>
+                        {item.is_saved ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs pr-2">
+                            <Check className="w-4 h-4 stroke-[2.5]" />
+                            <span>Saved</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSaveRow(item)}
+                            disabled={isSavingThisRow}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition disabled:opacity-50"
+                          >
+                            {isSavingThisRow ? (
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Save className="w-3 h-3" />
+                            )}
+                            <span>Save</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
